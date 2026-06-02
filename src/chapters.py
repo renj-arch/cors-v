@@ -42,25 +42,32 @@ def _extract_title(html_path: Path) -> str:
 def get_chapter_questions(html_path: Path) -> list[dict]:
     text = html_path.read_text(encoding="utf-8", errors="ignore")
     questions = []
+
+    esc = r'(?:[^"\\]|\\.)*'
+
     pattern = re.compile(
         r'"id":(\d+),'
-        r'"text":"(.*?)",'
-        r'"topic":"(.*?)",'
+        r'"text":"(' + esc + r')",'
+        r'"topic":"(' + esc + r')",'
         r'"opts":\[(.*?)\],'
-        r'"sol":"(.*?)"'
+        r'"sol":"(' + esc + r')"'
     )
     for m in pattern.finditer(text):
+        def clean(s):
+            return s.replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"')
+
         qid = int(m.group(1))
-        qtext = m.group(2).replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"')
-        topic = m.group(3)
-        sol = m.group(4).replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"')
-        opts_raw = m.group(5)
+        qtext = clean(m.group(2))
+        topic = clean(m.group(3))
+        opts_raw = m.group(4)
+        sol = clean(m.group(5))
+
         options = []
-        opt_pattern = re.compile(r'\{"l":"(.*?)","t":"(.*?)"(,"c":true)?\}')
+        opt_pattern = re.compile(r'\{"l":"([^"]*)","t":"((?:[^"\\]|\\.)*)"(,"c":true)?\}')
         for om in opt_pattern.finditer(f"[{opts_raw}]"):
             options.append({
                 "label": om.group(1),
-                "text": om.group(2).replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"'),
+                "text": clean(om.group(2)),
                 "correct": bool(om.group(3)),
             })
         questions.append({

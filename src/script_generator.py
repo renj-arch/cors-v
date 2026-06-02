@@ -103,11 +103,12 @@ def _build_fallback_scenes(chapter_title: str, concepts: list[dict]) -> list[dic
         "image_prompt": f"friendly teacher welcoming students, classroom, cartoon style, 16:9",
     })
     for c in concepts[:5]:
+        expl = c["explanation"][:200].replace('"', "").replace("'", "")
         scenes.append({
             "type": "explain",
             "heading": c["title"],
-            "bullets": c["explanation"][:150],
-            "dialogue": f"Let's understand {c['title']}. {c['explanation'][:150]}",
+            "bullets": expl,
+            "dialogue": f"Now let's understand {c['title']}. {expl} This is a very important concept for your exam.",
             "image_prompt": f"educational diagram explaining {c['title']}, cartoon style, teacher pointing, 16:9",
         })
     scenes.append({
