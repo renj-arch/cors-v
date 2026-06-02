@@ -1,0 +1,78 @@
+import os, platform
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ROOT_DIR = Path(__file__).parent
+ASSETS_DIR = ROOT_DIR / "assets"
+BACKGROUNDS_DIR = ASSETS_DIR / "backgrounds"
+FONTS_DIR = ASSETS_DIR / "fonts"
+MUSIC_DIR = ASSETS_DIR / "music"
+OUTPUT_DIR = ROOT_DIR / "output"
+TEMP_DIR = ROOT_DIR / "temp"
+BANK_DIR = ROOT_DIR / "bank"
+
+for d in [ASSETS_DIR, BACKGROUNDS_DIR, FONTS_DIR, MUSIC_DIR, OUTPUT_DIR, TEMP_DIR, BANK_DIR]:
+    d.mkdir(exist_ok=True)
+
+STUDY_PROJECT_ENV = os.getenv("STUDY_PROJECT", "")
+if STUDY_PROJECT_ENV:
+    STUDY_PROJECT = Path(STUDY_PROJECT_ENV)
+else:
+    STUDY_PROJECT = ROOT_DIR / "study"
+
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
+LLM_MODEL = os.getenv("LLM_MODEL", "moonshotai/kimi-k2.6:free")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+
+OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "edge")
+
+VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", 1920))
+VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", 1080))
+VIDEO_FPS = int(os.getenv("VIDEO_FPS", 24))
+
+VIDEO_SIZE = (VIDEO_WIDTH, VIDEO_HEIGHT)
+
+
+def get_font() -> str:
+    font_dirs = []
+    system = platform.system()
+    if system == "Windows":
+        font_dirs = [Path("C:/Windows/Fonts")]
+    elif system == "Linux":
+        font_dirs = [
+            Path("/usr/share/fonts/truetype/dejavu"),
+            Path("/usr/share/fonts/truetype/liberation"),
+            Path("/usr/share/fonts/truetype/noto"),
+        ]
+    elif system == "Darwin":
+        font_dirs = [
+            Path("/System/Library/Fonts"),
+            Path("/Library/Fonts"),
+            Path.home() / "Library/Fonts",
+        ]
+
+    names = [
+        "impact.ttf", "arialbd.ttf", "arial.ttf",
+        "DejaVuSans-Bold.ttf", "DejaVuSans.ttf",
+        "LiberationSans-Bold.ttf", "LiberationSans.ttf",
+        "NotoSans-Bold.ttf", "NotoSans.ttf",
+        "Arial Bold.ttf", "Arial.ttf",
+    ]
+
+    custom = list(FONTS_DIR.glob("*.ttf")) + list(FONTS_DIR.glob("*.otf"))
+    if custom:
+        return str(custom[0])
+
+    for d in font_dirs:
+        if d.exists():
+            for name in names:
+                candidates = list(d.rglob(name)) if d.is_dir() else []
+                if candidates:
+                    return str(candidates[0])
+
+    return str(font_dirs[0] / names[1]) if font_dirs else names[1]

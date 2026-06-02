@@ -1,0 +1,54 @@
+name: Generate Animated Lecture Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      exam:
+        description: 'Exam (neet/upsc/jee)'
+        required: true
+        default: 'neet'
+      chapter:
+        description: 'Chapter number'
+        required: true
+        default: '8'
+
+jobs:
+  generate-lecture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout coursevi
+        uses: actions/checkout@v4
+
+      - name: Checkout study content
+        uses: actions/checkout@v4
+        with:
+          repository: renj-arch/dimsred
+          path: study
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install edge-tts
+
+      - name: Generate animated lecture
+        env:
+          LLM_PROVIDER: openrouter
+          LLM_MODEL: openrouter/free
+          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          STUDY_PROJECT: ${{ github.workspace }}/study
+        run: |
+          python course_video.py ${{ inputs.exam }} ${{ inputs.chapter }}
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: animated-lecture-${{ inputs.exam }}-ch${{ inputs.chapter }}
+          path: output/*.mp4
+          retention-days: 7
