@@ -78,8 +78,7 @@ def create_blackboard(bg: Image.Image | None, heading: str) -> Image.Image:
     if heading:
         draw.text((bx + 40, by + 30), heading, font=font_h, fill=COLORS["accent2"])
 
-    accent_line = Image.new("RGB", (board_w - 80, 3), COLORS["accent"])
-    canvas.paste(accent_line, (bx + 40, by + 85))
+    draw.rectangle([bx + 40, by + 85, bx + board_w - 40, by + 88], fill=COLORS["accent"])
 
     return canvas
 
@@ -113,20 +112,14 @@ def draw_on_board(canvas: Image.Image, lines: list[str], y_start: int = 150) -> 
 
 def create_teacher_scene(teacher_img: Image.Image | None, board_bg: Image.Image | None,
                          heading: str, bullet_lines: list[str]) -> Image.Image:
-    if board_bg is None:
-        board_bg = create_lecture_bg()
-    canvas = board_bg.copy()
+    canvas = create_blackboard(board_bg, heading)
 
     if teacher_img:
         t_img = teacher_img.copy().resize((int(W * 0.3), int(H * 0.4)), Image.LANCZOS)
         tx, ty = W - t_img.width - 30, H - t_img.height - 30
         canvas.paste(t_img, (tx, ty))
 
-    board = create_blackboard(canvas, heading)
-    canvas.paste(board, (0, 0), board)
-
     canvas = draw_on_board(canvas, bullet_lines)
-
     return canvas
 
 
