@@ -47,6 +47,7 @@ def llm(prompt, system=""):
 
 
 COURSES = {
+    # ── Agniveer ──
     "agniveer-reasoning": {
         "exam": "agniveer",
         "dir": "agniveer/chapters",
@@ -107,6 +108,508 @@ COURSES = {
             "Indian Economy - Basics and Development",
             "Science and Technology Developments",
             "Sports, Awards, Honors and Current Affairs",
+        ],
+    },
+
+    # ── NEET ──
+    "neet-biology": {
+        "exam": "neet",
+        "dir": "neet/chapters",
+        "title": "NEET Biology",
+        "badge": "NEET &middot; Biology",
+        "chapters": [
+            "The Living World",
+            "Biological Classification",
+            "Plant Kingdom",
+            "Animal Kingdom",
+            "Morphology of Flowering Plants",
+            "Anatomy of Flowering Plants",
+            "Structural Organization in Animals",
+            "Cell: The Unit of Life",
+            "Biomolecules",
+            "Cell Cycle and Cell Division",
+            "Transport in Plants",
+            "Mineral Nutrition",
+            "Photosynthesis in Higher Plants",
+            "Respiration in Plants",
+            "Plant Growth and Development",
+            "Digestion and Absorption",
+            "Breathing and Exchange of Gases",
+            "Body Fluids and Circulation",
+            "Excretory Products and Their Elimination",
+            "Locomotion and Movement",
+            "Neural Control and Coordination",
+            "Chemical Coordination and Integration",
+        ],
+    },
+
+    # ── UPSC ──
+    "upsc-general-studies": {
+        "exam": "upsc",
+        "dir": "upsc/chapters",
+        "title": "UPSC General Studies",
+        "badge": "UPSC &middot; General Studies",
+        "chapters": [
+            "Indian Heritage and Culture",
+            "Modern Indian History",
+            "Geography of India and World",
+            "Indian Polity and Governance",
+            "Indian Economy and Development",
+            "Science and Technology",
+            "Environment and Ecology",
+            "International Relations",
+            "Ethics and Integrity",
+            "Current Affairs",
+        ],
+    },
+    "upsc-csat": {
+        "exam": "upsc",
+        "dir": "upsc/chapters",
+        "title": "UPSC CSAT",
+        "badge": "UPSC &middot; CSAT",
+        "chapters": [
+            "Comprehension and English Language",
+            "Logical Reasoning and Analytical Ability",
+            "Decision Making and Problem Solving",
+            "Numerical Ability and Data Interpretation",
+            "General Mental Ability",
+        ],
+    },
+
+    # ── JEE ──
+    "jee-physics": {
+        "exam": "jee",
+        "dir": "jee/chapters",
+        "title": "JEE Physics",
+        "badge": "JEE &middot; Physics",
+        "chapters": [
+            "Physics and Measurement",
+            "Kinematics and Laws of Motion",
+            "Work, Energy and Power",
+            "Rotational Motion and Gravitation",
+            "Properties of Matter and Fluid Mechanics",
+            "Thermodynamics and Kinetic Theory",
+            "Oscillations and Waves",
+            "Electrostatics and Current Electricity",
+            "Magnetism and Electromagnetic Induction",
+            "Optics and Modern Physics",
+        ],
+    },
+    "jee-chemistry": {
+        "exam": "jee",
+        "dir": "jee/chapters",
+        "title": "JEE Chemistry",
+        "badge": "JEE &middot; Chemistry",
+        "chapters": [
+            "Some Basic Concepts of Chemistry",
+            "Atomic Structure and Chemical Bonding",
+            "States of Matter and Thermodynamics",
+            "Equilibrium and Redox Reactions",
+            "Hydrogen, s-block and p-block Elements",
+            "Organic Chemistry - Basics and Hydrocarbons",
+            "Organic Compounds with Functional Groups",
+            "Environmental Chemistry",
+        ],
+    },
+    "jee-mathematics": {
+        "exam": "jee",
+        "dir": "jee/chapters",
+        "title": "JEE Mathematics",
+        "badge": "JEE &middot; Mathematics",
+        "chapters": [
+            "Sets, Relations and Functions",
+            "Complex Numbers and Quadratic Equations",
+            "Matrices and Determinants",
+            "Permutations, Combinations and Binomial Theorem",
+            "Sequences, Series and Mathematical Induction",
+            "Limits, Continuity and Differentiability",
+            "Integral Calculus and Differential Equations",
+            "Coordinate Geometry and Vectors",
+            "Statistics and Probability",
+            "Trigonometry",
+        ],
+    },
+
+    # ── GATE ──
+    "gate-engineering-mathematics": {
+        "exam": "gate",
+        "dir": "gate/chapters",
+        "title": "GATE Engineering Mathematics",
+        "badge": "GATE &middot; Engineering Mathematics",
+        "chapters": [
+            "Linear Algebra and Matrix Theory",
+            "Calculus - Limits, Continuity, Differentiation, Integration",
+            "Differential Equations",
+            "Probability and Statistics",
+            "Numerical Methods",
+            "Complex Variables and Transform Theory",
+        ],
+    },
+    "gate-general-aptitude": {
+        "exam": "gate",
+        "dir": "gate/chapters",
+        "title": "GATE General Aptitude",
+        "badge": "GATE &middot; General Aptitude",
+        "chapters": [
+            "Verbal Ability - Grammar and Comprehension",
+            "Numerical Ability and Quantitative Aptitude",
+            "Logical Reasoning and Analytical Skills",
+            "Data Interpretation and Sufficiency",
+        ],
+    },
+
+    # ── SSC-GD ──
+    "ssc-gd-reasoning": {
+        "exam": "ssc-gd",
+        "dir": "ssc-gd/chapters",
+        "title": "SSC GD Reasoning",
+        "badge": "SSC GD &middot; Reasoning",
+        "chapters": [
+            "Analogies and Similarities",
+            "Classification and Odd One Out",
+            "Coding-Decoding",
+            "Blood Relations and Family Tree",
+            "Direction Sense and Distance",
+            "Puzzles and Seating Arrangements",
+            "Syllogisms and Statements",
+            "Non-Verbal Reasoning",
+        ],
+    },
+    "ssc-gd-mathematics": {
+        "exam": "ssc-gd",
+        "dir": "ssc-gd/chapters",
+        "title": "SSC GD Mathematics",
+        "badge": "SSC GD &middot; Mathematics",
+        "chapters": [
+            "Number System and LCM-HCF",
+            "Percentage and Average",
+            "Ratio, Proportion and Partnership",
+            "Profit, Loss and Discount",
+            "Simple and Compound Interest",
+            "Time, Work and Wages",
+            "Speed, Distance and Time",
+            "Algebra and Geometry",
+            "Data Interpretation",
+        ],
+    },
+    "ssc-gd-english": {
+        "exam": "ssc-gd",
+        "dir": "ssc-gd/chapters",
+        "title": "SSC GD English",
+        "badge": "SSC GD &middot; English",
+        "chapters": [
+            "Reading Comprehension",
+            "Grammar - Tenses, Articles and Prepositions",
+            "Vocabulary - Synonyms, Antonyms and Idioms",
+            "Sentence Correction and Improvement",
+            "Fill in the Blanks and Cloze Test",
+            "Spotting Errors and Para Jumbles",
+        ],
+    },
+    "ssc-gd-general-knowledge": {
+        "exam": "ssc-gd",
+        "dir": "ssc-gd/chapters",
+        "title": "SSC GD General Knowledge",
+        "badge": "SSC GD &middot; General Knowledge",
+        "chapters": [
+            "Indian History and Freedom Struggle",
+            "Indian Geography",
+            "Indian Polity and Constitution",
+            "Indian Economy",
+            "Science and Technology",
+            "Current Affairs and Sports",
+        ],
+    },
+
+    # ── SSC CGL ──
+    "cgl-reasoning": {
+        "exam": "cgl",
+        "dir": "cgl/chapters",
+        "title": "SSC CGL Reasoning",
+        "badge": "SSC CGL &middot; Reasoning",
+        "chapters": [
+            "Analogies and Similarities",
+            "Classification and Odd One Out",
+            "Coding-Decoding",
+            "Blood Relations",
+            "Direction Sense",
+            "Puzzles and Seating Arrangements",
+            "Syllogisms",
+            "Non-Verbal Reasoning",
+        ],
+    },
+    "cgl-quantitative-aptitude": {
+        "exam": "cgl",
+        "dir": "cgl/chapters",
+        "title": "SSC CGL Quantitative Aptitude",
+        "badge": "SSC CGL &middot; Quantitative Aptitude",
+        "chapters": [
+            "Number System and LCM-HCF",
+            "Percentage and Average",
+            "Ratio, Proportion and Mixture",
+            "Profit, Loss and Discount",
+            "Simple and Compound Interest",
+            "Time, Work and Wages",
+            "Speed, Distance and Time",
+            "Algebra and Geometry",
+            "Trigonometry and Mensuration",
+            "Data Interpretation",
+        ],
+    },
+    "cgl-english": {
+        "exam": "cgl",
+        "dir": "cgl/chapters",
+        "title": "SSC CGL English",
+        "badge": "SSC CGL &middot; English",
+        "chapters": [
+            "Reading Comprehension",
+            "English Grammar",
+            "Vocabulary",
+            "Sentence Improvement and Correction",
+            "Fill in the Blanks",
+            "Para Jumbles and Cloze Test",
+        ],
+    },
+    "cgl-general-awareness": {
+        "exam": "cgl",
+        "dir": "cgl/chapters",
+        "title": "SSC CGL General Awareness",
+        "badge": "SSC CGL &middot; General Awareness",
+        "chapters": [
+            "Indian History and Culture",
+            "Indian Geography",
+            "Indian Polity and Constitution",
+            "Indian Economy",
+            "General Science",
+            "Current Affairs and Sports",
+        ],
+    },
+
+    # ── IBPS PO ──
+    "ibps-po-reasoning": {
+        "exam": "ibps-po",
+        "dir": "ibps-po/chapters",
+        "title": "IBPS PO Reasoning",
+        "badge": "IBPS PO &middot; Reasoning",
+        "chapters": [
+            "Analogies and Classification",
+            "Coding-Decoding",
+            "Blood Relations",
+            "Direction Sense",
+            "Puzzles and Seating Arrangements",
+            "Syllogisms",
+            "Data Sufficiency",
+            "Inequalities and Machine Input-Output",
+        ],
+    },
+    "ibps-po-quantitative-aptitude": {
+        "exam": "ibps-po",
+        "dir": "ibps-po/chapters",
+        "title": "IBPS PO Quantitative Aptitude",
+        "badge": "IBPS PO &middot; Quantitative Aptitude",
+        "chapters": [
+            "Number System and Simplification",
+            "Percentage, Average and Ratio",
+            "Profit, Loss and Interest",
+            "Time, Work and Distance",
+            "Algebra and Geometry",
+            "Data Interpretation and Sufficiency",
+            "Probability and Permutations",
+        ],
+    },
+    "ibps-po-english": {
+        "exam": "ibps-po",
+        "dir": "ibps-po/chapters",
+        "title": "IBPS PO English",
+        "badge": "IBPS PO &middot; English",
+        "chapters": [
+            "Reading Comprehension",
+            "Grammar and Sentence Correction",
+            "Vocabulary",
+            "Cloze Test and Fillers",
+            "Para Jumbles and Sentence Rearrangement",
+        ],
+    },
+    "ibps-po-general-awareness": {
+        "exam": "ibps-po",
+        "dir": "ibps-po/chapters",
+        "title": "IBPS PO General Awareness",
+        "badge": "IBPS PO &middot; General Awareness",
+        "chapters": [
+            "Banking and Financial Awareness",
+            "Indian Economy and Budget",
+            "Current Affairs",
+            "Static GK - History, Geography, Polity",
+            "Science and Technology",
+        ],
+    },
+
+    # ── SBI Clerk ──
+    "sbi-clerk-reasoning": {
+        "exam": "sbi-clerk",
+        "dir": "sbi-clerk/chapters",
+        "title": "SBI Clerk Reasoning",
+        "badge": "SBI Clerk &middot; Reasoning",
+        "chapters": [
+            "Analogies and Classification",
+            "Coding-Decoding",
+            "Blood Relations",
+            "Direction Sense",
+            "Puzzles and Seating Arrangements",
+            "Syllogisms",
+            "Data Sufficiency",
+            "Inequalities",
+        ],
+    },
+    "sbi-clerk-quantitative-aptitude": {
+        "exam": "sbi-clerk",
+        "dir": "sbi-clerk/chapters",
+        "title": "SBI Clerk Quantitative Aptitude",
+        "badge": "SBI Clerk &middot; Quantitative Aptitude",
+        "chapters": [
+            "Number System and Simplification",
+            "Percentage, Average and Ratio",
+            "Profit, Loss and Interest",
+            "Time, Work and Distance",
+            "Data Interpretation",
+            "Algebra and Geometry",
+        ],
+    },
+    "sbi-clerk-english": {
+        "exam": "sbi-clerk",
+        "dir": "sbi-clerk/chapters",
+        "title": "SBI Clerk English",
+        "badge": "SBI Clerk &middot; English",
+        "chapters": [
+            "Reading Comprehension",
+            "English Grammar",
+            "Vocabulary",
+            "Cloze Test and Fillers",
+            "Para Jumbles",
+        ],
+    },
+    "sbi-clerk-general-awareness": {
+        "exam": "sbi-clerk",
+        "dir": "sbi-clerk/chapters",
+        "title": "SBI Clerk General Awareness",
+        "badge": "SBI Clerk &middot; General Awareness",
+        "chapters": [
+            "Banking Awareness",
+            "Indian Economy",
+            "Current Affairs",
+            "Static GK",
+            "General Science",
+        ],
+    },
+
+    # ── RBI Grade B ──
+    "rbi-reasoning": {
+        "exam": "rbi",
+        "dir": "rbi/chapters",
+        "title": "RBI Grade B Reasoning",
+        "badge": "RBI Grade B &middot; Reasoning",
+        "chapters": [
+            "Analogies and Classification",
+            "Coding-Decoding",
+            "Blood Relations",
+            "Direction Sense",
+            "Puzzles and Seating Arrangements",
+            "Syllogisms",
+            "Data Sufficiency",
+            "Inequalities and Input-Output",
+        ],
+    },
+    "rbi-quantitative-aptitude": {
+        "exam": "rbi",
+        "dir": "rbi/chapters",
+        "title": "RBI Grade B Quantitative Aptitude",
+        "badge": "RBI Grade B &middot; Quantitative Aptitude",
+        "chapters": [
+            "Number System and Simplification",
+            "Percentage, Average and Ratio",
+            "Profit, Loss and Interest",
+            "Time, Work and Distance",
+            "Data Interpretation",
+            "Probability and Permutations",
+        ],
+    },
+    "rbi-english": {
+        "exam": "rbi",
+        "dir": "rbi/chapters",
+        "title": "RBI Grade B English",
+        "badge": "RBI Grade B &middot; English",
+        "chapters": [
+            "Reading Comprehension",
+            "English Grammar",
+            "Vocabulary",
+            "Cloze Test",
+            "Para Jumbles",
+        ],
+    },
+    "rbi-general-awareness": {
+        "exam": "rbi",
+        "dir": "rbi/chapters",
+        "title": "RBI Grade B General Awareness",
+        "badge": "RBI Grade B &middot; General Awareness",
+        "chapters": [
+            "Banking and Financial System",
+            "Indian Economy and Budget",
+            "Monetary and Fiscal Policy",
+            "Current Affairs",
+            "Static GK",
+        ],
+    },
+
+    # ── CTET ──
+    "ctet-child-development": {
+        "exam": "ctet",
+        "dir": "ctet/chapters",
+        "title": "CTET Child Development and Pedagogy",
+        "badge": "CTET &middot; Child Development",
+        "chapters": [
+            "Child Development - Growth and Maturation",
+            "Theories of Learning and Intelligence",
+            "Concept of Inclusive Education",
+            "Learning and Pedagogy",
+            "Assessment and Evaluation",
+            "Individual Differences and Motivation",
+        ],
+    },
+    "ctet-mathematics": {
+        "exam": "ctet",
+        "dir": "ctet/chapters",
+        "title": "CTET Mathematics",
+        "badge": "CTET &middot; Mathematics",
+        "chapters": [
+            "Number System and Arithmetic",
+            "Algebra and Geometry",
+            "Mensuration and Data Handling",
+            "Pedagogy of Mathematics",
+        ],
+    },
+    "ctet-environmental-studies": {
+        "exam": "ctet",
+        "dir": "ctet/chapters",
+        "title": "CTET Environmental Studies",
+        "badge": "CTET &middot; Environmental Studies",
+        "chapters": [
+            "Family and Friends",
+            "Food, Shelter and Water",
+            "Travel and Transport",
+            "Natural Resources and Environment",
+            "Pedagogy of Environmental Studies",
+        ],
+    },
+    "ctet-language": {
+        "exam": "ctet",
+        "dir": "ctet/chapters",
+        "title": "CTET Language",
+        "badge": "CTET &middot; Language",
+        "chapters": [
+            "Reading Comprehension",
+            "English Grammar",
+            "Vocabulary and Language Development",
+            "Pedagogy of Language Teaching",
         ],
     },
 }
@@ -286,6 +789,8 @@ def generate_course(course_key, course):
     chapters = course["chapters"]
     exam_dir = STUDY / course["dir"]
     exam_dir.mkdir(parents=True, exist_ok=True)
+    exam_name = course["title"]
+    exam_short = course["exam"].upper()
 
     for i, ch_title in enumerate(chapters):
         print(f"\n{'='*50}")
@@ -293,14 +798,14 @@ def generate_course(course_key, course):
         print(f"{'='*50}")
 
         sys_prompt = (
-            "You are an expert exam teacher creating detailed lesson content for Agniveer (Indian Army) exam preparation. "
-            "Generate comprehensive, accurate, and exam-focused content. "
-            "Return ONLY valid JSON with no markdown wrapping."
+            f"You are an expert exam teacher creating detailed lesson content for {exam_name} preparation. "
+            f"Generate comprehensive, accurate, and exam-focused content. "
+            f"Return ONLY valid JSON with no markdown wrapping."
         )
 
         title_trunc = ch_title[:30]
         prompt = (
-            'Generate a complete lesson for Agniveer exam on the topic: "' + ch_title + '"\n\n'
+            f'Generate a complete lesson for {exam_short} exam on the topic: "' + ch_title + '"\n\n'
             'Return JSON with this exact structure:\n'
             '{\n'
             '  "description": "2-3 sentence description of what this chapter covers",\n'
