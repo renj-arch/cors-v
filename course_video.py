@@ -1,6 +1,6 @@
-"""Animated lecture video generator — teacher character explains concepts from study chapters."""
+"""Animated lecture video generator."""
 
-import sys, time
+import sys, time, os
 from pathlib import Path
 import config
 from src.chapters import get_chapter_info
@@ -10,6 +10,13 @@ from src.video_builder import build_lecture_video
 
 
 EXAMS = ["neet", "upsc", "jee", "gate", "ssc-gd", "cgl", "ibps-po", "sbi-clerk", "rbi", "ctet", "agniveer"]
+
+
+def _safe_filename(s: str) -> str:
+    keep = s.lower().replace(" ", "_")
+    for ch in "?!'\".,:|\/\\":
+        keep = keep.replace(ch, "")
+    return keep[:60]
 
 
 def main():
@@ -50,10 +57,12 @@ def main():
     temp_dir = config.TEMP_DIR / f"{exam}_{ch_info['filename']}"
     temp_dir.mkdir(exist_ok=True)
 
-    print(f"\n[1/4] Creating lecture scenes...")
     topic_keywords = ch_info["filename"].replace("biology-chapter-", "").replace("-", " ")
-    scenes = generate_lecture_scenes(ch_info["title"], topic_keywords, ch_info["concepts"])
-    print(f"  {len(scenes)} lecture scenes created")
+    concepts = ch_info["concepts"]
+
+    print(f"\n[1/4] Creating lecture scenes...")
+    scenes = generate_lecture_scenes(ch_info["title"], topic_keywords, concepts)
+    print(f"  {len(scenes)} scenes created")
 
     dialogue = generate_lecture_dialogue(scenes)
     if not dialogue or len(dialogue) < 50:
@@ -62,9 +71,9 @@ def main():
         dialogue = generate_lecture_dialogue(scenes)
 
     title = generate_video_title(ch_info["title"], topic_keywords)
+    print(f"  Title: {title}")
 
     print(f"\n[2/4] Generating voiceover ({len(dialogue)} chars)...")
-    print(f"  Title: {title}")
     tts_path = temp_dir / "narration.mp3"
     try:
         generate_tts(dialogue, tts_path)
@@ -83,16 +92,14 @@ def main():
     print(f"  Voiceover saved ({tts_path.stat().st_size / 1024:.0f} KB)")
 
     print(f"\n[3/4] Building animated lecture video...")
-    safe_title = title.lower().replace(" ", "_").replace("?", "").replace("!", "").replace("'", "").replace('"', "").replace(".","").replace(",","").replace(":","").replace("|","").replace("/","_").replace("\\","_")[:60]
+    safe_title = _safe_filename(title)
     out_path = config.OUTPUT_DIR / f"{exam}_{safe_title}.mp4"
     out_path.unlink(missing_ok=True)
 
     build_lecture_video(scenes, tts_path, out_path, title=title, exam=exam)
 
-    print(f"\n[4/4] Video ready!")
+    print(f"\n[4/4] Done!")
     print(f"  Output: {out_path}")
-
-    return out_path, {"title": title, "exam": exam, "chapter": ch_info["title"], "scenes": scenes}
 
 
 if __name__ == "__main__":

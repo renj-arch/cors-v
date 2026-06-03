@@ -10,11 +10,6 @@ on:
           - "1 - Csat Important Questions"
           - "2 - Current Affairs Important Questions"
           - "3 - General Studies Important Questions"
-      parts:
-        description: 'Split into how many parts?'
-        required: true
-        type: number
-        default: 1
 
 jobs:
   generate-lecture:
@@ -43,7 +38,6 @@ jobs:
           LLM_MODEL: openrouter/free
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
-          PARTS: ${{ inputs.parts }}
         run: |
           CH="${{ inputs.chapter }}"
           CH_NUM=$(echo "$CH" | cut -d' ' -f1)

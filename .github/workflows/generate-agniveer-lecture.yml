@@ -17,11 +17,6 @@ on:
           - "Agniveer Mathematics Important Questions"
           - "Agniveer Reasoning Important Questions with Answers"
           - "Agniveer Science Important Questions with Answers"
-      parts:
-        description: 'Split into how many parts?'
-        required: true
-        type: number
-        default: 1
 
 jobs:
   generate-lecture:
@@ -54,7 +49,6 @@ jobs:
           LLM_MODEL: openrouter/free
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
-          PARTS: ${{ inputs.parts }}
         run: python course_video.py agniveer "${{ inputs.chapter }}"
 
       - name: Upload video artifact

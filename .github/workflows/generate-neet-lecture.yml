@@ -29,11 +29,6 @@ on:
           - "20 - Locomotion and Movement"
           - "21 - Neural Control and Coordination"
           - "22 - Chemical Coordination and Integration"
-      parts:
-        description: 'Split into how many parts?'
-        required: true
-        type: number
-        default: 1
 
 jobs:
   generate-lecture:
@@ -66,7 +61,6 @@ jobs:
           LLM_MODEL: openrouter/free
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
-          PARTS: ${{ inputs.parts }}
         run: |
           CH="${{ inputs.chapter }}"
           CH_NUM=$(echo "$CH" | cut -d' ' -f1)
