@@ -83,7 +83,7 @@ def main():
     print(f"  Voiceover saved ({tts_path.stat().st_size / 1024:.0f} KB)")
 
     print(f"\n[3/4] Building animated lecture video...")
-    safe_title = title.lower().replace(" ", "_").replace("?", "").replace("!", "").replace("'", "").replace(".","").replace(",","").replace(":","").replace("|","").replace("/","_").replace("\\","_")[:60]
+    safe_title = title.lower().replace(" ", "_").replace("?", "").replace("!", "").replace("'", "").replace('"', "").replace(".","").replace(",","").replace(":","").replace("|","").replace("/","_").replace("\\","_")[:60]
     out_path = config.OUTPUT_DIR / f"{exam}_{safe_title}.mp4"
     out_path.unlink(missing_ok=True)
 

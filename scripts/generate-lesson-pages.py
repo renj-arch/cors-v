@@ -24,18 +24,25 @@ def llm(prompt, system=""):
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    try:
-        r = req.post(
-            f"{config.OPENROUTER_BASE}/chat/completions",
-            headers=headers,
-            json={"model": config.LLM_MODEL, "messages": messages, "temperature": 0.7, "max_tokens": 8192},
-            timeout=180,
-        )
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"].strip()
-        print(f"  API error {r.status_code}")
-    except Exception as e:
-        print(f"  LLM error: {e}")
+    for attempt in range(3):
+        try:
+            r = req.post(
+                f"{config.OPENROUTER_BASE}/chat/completions",
+                headers=headers,
+                json={"model": config.LLM_MODEL, "messages": messages, "temperature": 0.7, "max_tokens": 8192},
+                timeout=180,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if "choices" in data and len(data["choices"]) > 0:
+                    return data["choices"][0]["message"]["content"].strip()
+                print(f"  Unexpected response: missing choices")
+            else:
+                print(f"  API error {r.status_code} (attempt {attempt+1}/3)")
+        except Exception as e:
+            print(f"  LLM error: {e} (attempt {attempt+1}/3)")
+        if attempt < 2:
+            time.sleep(5 * (attempt + 1))
     return ""
 
 
