@@ -31,10 +31,14 @@ FONT_CACHE = {}
 def _font(size=28):
     if size in FONT_CACHE:
         return FONT_CACHE[size]
+    f = None
     try:
         f = ImageFont.truetype(FONT, size)
-    except:
-        f = ImageFont.load_default()
+    except Exception:
+        try:
+            f = ImageFont.load_default().font_variant(size=size)
+        except Exception:
+            f = ImageFont.load_default()
     FONT_CACHE[size] = f
     return f
 
@@ -54,9 +58,10 @@ def _board(draw, bx, by, bw, bh):
 
 
 def _tw(font, text):
-    """Text width using getbbox."""
     bbox = font.getbbox(text)
-    return bbox[2] - bbox[0]
+    if bbox:
+        return bbox[2] - bbox[0]
+    return len(text) * 8
 
 
 def _wrap(text, max_w, font):
@@ -73,11 +78,13 @@ def _wrap(text, max_w, font):
             cur = w
     if cur:
         lines.append(cur)
-    return lines if lines else [text[:int(max_w / 8)]]
+    if not lines:
+        fallback_len = max(int(max_w / max(_tw(font, "W"), 1)), 1)
+        return [text[:fallback_len]]
+    return lines
 
 
 def _draw_wrapped(draw, x, y, text, font, fill, max_w, line_spacing=None):
-    """Draw wrapped text, returns y after last line."""
     if line_spacing is None:
         line_spacing = font.size + 6
     lines = _wrap(text, max_w, font)
@@ -103,29 +110,33 @@ def _arrow(draw, x1, y1, x2, y2, color=None, width=3):
 def _box(draw, x, y, w, h, text, fill=C["box1"], text_color=C["text"], font_size=24):
     f = _font(font_size)
     draw.rounded_rectangle([x, y, x + w, y + h], radius=8, fill=fill, outline=C["board_outline"], width=2)
-    lines = _wrap(text, w - 16, f)
-    line_h = font_size + 4
-    total_h = len(lines) * line_h
-    sy = y + (h - total_h) // 2
+    inner_w = max(w - 16, 10)
+    lines = _wrap(text, inner_w, f)
+    lh = font_size + 4
+    total_h = len(lines) * lh
+    sy = y + max((h - total_h) // 2, 4)
     for i, line in enumerate(lines):
         tw = _tw(f, line)
-        draw.text((x + (w - tw) // 2, sy + i * line_h), line, font=f, fill=text_color)
+        tx = max(x + (w - tw) // 2, x + 8)
+        draw.text((tx, sy + i * lh), line, font=f, fill=text_color)
 
 
 def _draw_heading(draw, bx, by, bw, heading):
-    """Draw heading with auto-truncation and underline."""
     f = _font(32)
     max_w = bw - 60
     display = heading
     while _tw(f, display) > max_w and len(display) > 5:
         display = display[:-1]
-    if display != heading:
+    if display != heading and len(display) > 3:
         display = display[:-3] + "..."
     draw.text((bx + 30, by + 20), display, font=f, fill=C["accent2"])
-    draw.rectangle([bx + 30, by + 65, bx + _tw(f, display) + 30, by + 68], fill=C["accent"])
+    underline_y = by + 62
+    line_w = min(_tw(f, display), max_w)
+    draw.rectangle([bx + 30, underline_y, bx + 30 + line_w, underline_y + 3], fill=C["accent"])
 
 
 def render_flowchart(heading, lines):
+    """Vertical stacked flowchart with arrows between boxes. Handles 1-8 items."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -136,27 +147,31 @@ def render_flowchart(heading, lines):
     if not items:
         return img
 
-    n = min(len(items), 5)
-    box_w = min(260, (bw - 80) // n)
-    box_h = 90
-    gap = (bw - 80 - n * box_w) // max(n - 1, 1)
-    if gap < 10:
-        gap = 10
-        box_w = (bw - 80 - (n - 1) * gap) // n
-    start_x = bx + 40
-    y = by + 110
+    n = min(len(items), 8)
+    usable_h = bh - 140
+    usable_w = bw - 100
+    box_h = min(70, int(usable_h / n) - 6)
+    box_h = max(box_h, 40)
+    gap = 8
+    total_h = n * box_h + (n - 1) * gap
+    start_y = by + (bh - total_h) // 2 + 30
 
+    f_b = _font(18)
     for i, item in enumerate(items[:n]):
-        x = start_x + i * (box_w + gap)
+        y = start_y + i * (box_h + gap)
         colors = [C["box1"], C["box2"], C["box3"], C["box4"]]
-        _box(draw, x, y, box_w, box_h, f"{i+1}. {item}", fill=colors[i % 4], font_size=20)
+        label = f"{i+1}. {item}"
+        _box(draw, bx + 50, y, usable_w, box_h, label, fill=colors[i % 4], font_size=18)
         if i < n - 1:
-            _arrow(draw, x + box_w + 2, y + box_h // 2, x + box_w + gap - 2, y + box_h // 2)
+            _arrow(draw, bx + 50 + usable_w // 2, y + box_h + 1,
+                   bx + 50 + usable_w // 2, y + box_h + gap - 1,
+                   color=C["accent3"], width=2)
 
     return img
 
 
 def render_steps(heading, lines):
+    """Numbered vertical circles with step descriptions."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -168,31 +183,35 @@ def render_steps(heading, lines):
         return img
 
     n = min(len(items), 6)
-    box_h = 60
-    gap = 16
+    usable_h = bh - 140
+    usable_w = bw - 180
+    box_h = min(int(usable_h / n) - 10, 70)
+    box_h = max(box_h, 36)
+    gap = 10
     total_h = n * box_h + (n - 1) * gap
-    start_y = by + (bh - total_h) // 2 + 40
+    start_y = by + (bh - total_h) // 2 + 30
 
-    f_text = _font(24)
-    max_text_w = bw - 160
-
+    f_text = _font(22)
     for i, item in enumerate(items[:n]):
         y = start_y + i * (box_h + gap)
-        num_w = 36
-        cx = bx + 45
-        draw.ellipse([cx, y + 6, cx + num_w, y + box_h - 6], fill=C["accent2"])
-        fn = _font(18)
-        draw.text((cx + 12, y + 16), str(i + 1), font=fn, fill=(0, 0, 0))
-        tx = cx + num_w + 16
-        _draw_wrapped(draw, tx, y + 8, item, f_text, C["text"], max_text_w, line_spacing=28)
+        num_r = 16
+        cx = bx + 55
+        cy = y + box_h // 2
+        draw.ellipse([cx - num_r, cy - num_r, cx + num_r, cy + num_r], fill=C["accent2"])
+        fn = _font(16)
+        num_tw = _tw(fn, str(i + 1))
+        draw.text((cx - num_tw // 2, cy - 8), str(i + 1), font=fn, fill=(0, 0, 0))
+        tx = cx + num_r + 16
+        _draw_wrapped(draw, tx, y + 4, item, f_text, C["text"], usable_w, line_spacing=26)
         if i < n - 1:
-            _arrow(draw, cx + 18, y + box_h + 2, cx + 18, y + box_h + gap - 2,
+            _arrow(draw, cx, cy + num_r + 2, cx, cy + num_r + gap - 2,
                    color=C["accent3"], width=2)
 
     return img
 
 
 def render_comparison(heading, lines):
+    """Two-column comparison chart."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -206,27 +225,28 @@ def render_comparison(heading, lines):
     col_w = (bw - 120) // 2
     y = by + 110
     col_h = bh - 140
-
     mid_x = bx + bw // 2
+
     draw.line([(mid_x, y), (mid_x, y + col_h)], fill=C["board_outline"], width=2)
 
     mid = len(items) // 2
-    left_text = items[:mid] if mid > 0 else items[:1]
-    right_text = items[mid:] if mid > 0 else []
+    left_items = items[:mid] if mid else items[:1]
+    right_items = items[mid:] if mid else []
 
     f = _font(22)
-    for i, item in enumerate(left_text):
-        iy = y + 12 + i * 36
+    for i, item in enumerate(left_items):
+        iy = y + 12 + i * 38
         _draw_wrapped(draw, bx + 45, iy, item, f, C["accent3"], col_w - 20, line_spacing=28)
 
-    for i, item in enumerate(right_text):
-        iy = y + 12 + i * 36
+    for i, item in enumerate(right_items):
+        iy = y + 12 + i * 38
         _draw_wrapped(draw, mid_x + 45, iy, item, f, C["accent4"], col_w - 20, line_spacing=28)
 
     return img
 
 
 def render_classification(heading, lines):
+    """Tree diagram: root heading at top, child categories below."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -243,25 +263,28 @@ def render_classification(heading, lines):
     root_x = bx + (bw - root_w) // 2
     _box(draw, root_x, root_y, root_w, root_h, heading[:40], fill=C["box2"], font_size=22)
 
-    n = min(len(items), 4)
-    child_w = min(240, (bw - 100) // n)
+    n = min(len(items), 6)
+    child_w = min(200, (bw - 100) // n)
     child_h = 70
-    child_y = root_y + root_h + 55
+    child_y = root_y + root_h + 50
     gap = (bw - 80 - n * child_w) // max(n - 1, 1)
-    if gap < 10:
-        gap = 10
+    if gap < 8:
+        gap = 8
         child_w = (bw - 80 - (n - 1) * gap) // n
+    child_w = max(child_w, 60)
     start_x = bx + 40
 
     for i, item in enumerate(items[:n]):
         cx = start_x + i * (child_w + gap)
-        _box(draw, cx, child_y, child_w, child_h, item, fill=C["box3" if i % 2 else "box1"], font_size=18)
-        _arrow(draw, root_x + root_w // 2, root_y + root_h, cx + child_w // 2, child_y, width=2)
+        _box(draw, cx, child_y, child_w, child_h, item, fill=C["box3" if i % 2 else "box1"], font_size=16)
+        _arrow(draw, root_x + root_w // 2, root_y + root_h,
+               cx + child_w // 2, child_y, width=2)
 
     return img
 
 
 def render_concept(heading, lines):
+    """Radial mind map: center concept with orbiting nodes."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -276,14 +299,14 @@ def render_concept(heading, lines):
     center_r = 60
     draw.ellipse([cx - center_r, cy - center_r, cx + center_r, cy + center_r],
                  fill=C["accent2"], outline=C["board_outline"], width=3)
-    fn = _font(17)
+    fn = _font(16)
     hw = _tw(fn, heading[:18])
     draw.text((cx - hw // 2, cy - 8), heading[:18], font=fn, fill=(0, 0, 0))
 
     n = min(len(items), 6)
     node_r = 55
-    radius = 190
-    angle_step = 2 * math.pi / n
+    radius = 180
+    angle_step = 2 * math.pi / n if n else 1
     for i, item in enumerate(items[:n]):
         angle = angle_step * i - math.pi / 2
         nx = cx + int(radius * math.cos(angle))
@@ -291,14 +314,15 @@ def render_concept(heading, lines):
         draw.line([(cx, cy), (nx, ny)], fill=C["accent"], width=2)
         draw.ellipse([nx - node_r, ny - node_r, nx + node_r, ny + node_r],
                      fill=C["box1"], outline=C["accent"], width=2)
-        f = _font(15)
-        max_text_w = node_r * 2 - 16
-        _draw_wrapped(draw, nx - node_r + 8, ny - 12, item[:40], f, C["text"], max_text_w, line_spacing=17)
+        f = _font(14)
+        inner_w = node_r * 2 - 16
+        _draw_wrapped(draw, nx - node_r + 8, ny - 12, item[:40], f, C["text"], inner_w, line_spacing=16)
 
     return img
 
 
 def render_bullets(heading, lines):
+    """Styled bullet list with colored dots and wrapping."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
@@ -310,10 +334,10 @@ def render_bullets(heading, lines):
         return img
 
     f = _font(24)
-    max_w = bw - 120
+    max_w = bw - 130
     y = by + 110
     colors = [C["accent"], C["accent2"], C["accent3"], C["accent4"], C["highlight"]]
-    for i, item in enumerate(items[:8]):
+    for i, item in enumerate(items[:10]):
         dot_color = colors[i % len(colors)]
         draw.ellipse([bx + 50, y + 6, bx + 64, y + 20], fill=dot_color)
         y = _draw_wrapped(draw, bx + 78, y, item, f, C["text"], max_w, line_spacing=30)
@@ -323,21 +347,21 @@ def render_bullets(heading, lines):
 
 
 def render_scene(scene_type, heading, lines):
-    """Auto-detect best diagram type and render."""
+    """Auto-detect best diagram type and render. Always returns an Image."""
     h = heading.lower()
     combined = " ".join(lines).lower()
 
     if scene_type == "summary":
         return render_bullets("Key Takeaways", lines)
 
-    if any(w in combined or w in h for w in ["comparison", "vs ", "difference", "pros", "cons", "advantage"]):
+    if any(w in combined or w in h for w in ["comparison", "vs ", "difference", "pros", "cons", "advantage", "disadvantage"]):
         return render_comparison(heading, lines)
 
     if any(w in combined or w in h for w in ["type", "category", "classification", "kind", "branch"]):
         return render_classification(heading, lines)
 
-    if any(w in combined or w in h for w in ["step", "process", "method", "technique", "approach", "procedure"]):
-        if len(lines) <= 4:
+    if any(w in combined or w in h for w in ["step", "process", "method", "technique", "approach", "procedure", "how to"]):
+        if len(lines) <= 6:
             return render_steps(heading, lines)
         return render_flowchart(heading, lines)
 
@@ -349,7 +373,7 @@ def render_scene(scene_type, heading, lines):
 
     if len(lines) <= 3:
         return render_steps(heading, lines)
-    if len(lines) <= 5:
+    if len(lines) <= 6:
         return render_flowchart(heading, lines)
 
     return render_bullets(heading, lines)

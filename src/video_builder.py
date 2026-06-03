@@ -224,12 +224,18 @@ def build_lecture_video(
     total_dur = audio.duration
     audio.close()
 
-    scene_dur = total_dur / max(len(scenes), 1)
+    cta_dur = total_dur * 0.07
+    explain_dur = total_dur * 0.65
+    hook_dur = total_dur * 0.06
+    intro_dur = total_dur * 0.08
+    demo_dur = total_dur * 0.08
+    summary_dur = total_dur * 0.06
 
     print(f"\n  Generating {len(scenes)} lecture scenes...")
 
     scene_images = []
-    for i, scene in enumerate(scenes):
+    scene_text_chars = []
+    for si, scene in enumerate(scenes):
         scene_type = scene.get("type", "explain")
         heading = scene.get("heading", "")
         lines = scene.get("bullets", "")
@@ -237,37 +243,58 @@ def build_lecture_video(
             lines = [l.strip() for l in lines.replace("•", "").split(",") if l.strip()]
         if not lines:
             lines = [heading]
+        dialogue = scene.get("dialogue", "") or ""
+
+        total_chars = len(dialogue) + sum(len(l) for l in lines) + len(heading)
+        scene_text_chars.append(total_chars)
 
         if scene_type == "summary":
             canvas = visual_renderer.render_bullets("Key Takeaways", lines[:6])
         elif scene_type == "cta":
-            from src.visual_renderer import _bg, _board, _draw_heading
-            canvas = _bg()
-            draw = ImageDraw.Draw(canvas)
-            bx, by, bw, bh = 60, 60, visual_renderer.W - 120, visual_renderer.H - 120
-            _board(draw, bx, by, bw, bh)
-            _draw_heading(draw, bx, by, bw, heading)
-            f = visual_renderer._font(30)
-            y = by + 120
-            for line in lines:
-                tw = f.getbbox(line)[2]
-                draw.text((bx + (bw - tw) // 2, y), line, font=f, fill=(255, 255, 255))
-                y += 50
+            canvas = visual_renderer.render_bullets(heading, lines[:4])
         else:
             canvas = visual_renderer.render_scene(scene_type, heading, lines)
 
+        if canvas is None:
+            canvas = visual_renderer._bg()
         scene_images.append(np.array(canvas))
-        print(f"    Scene {i+1}: {scene_type} — {heading[:40]}")
+        print(f"    Scene {si+1}: {scene_type} — {heading[:40]}")
 
     print("  Assembling lecture...")
+
+    total_text_chars = sum(scene_text_chars)
+    min_dur = 1.5
+
     clips = []
 
     for i, (scene_data, img_arr) in enumerate(zip(scenes, scene_images)):
-        sd = scene_dur
-        if i < len(scenes) - 1:
-            sd = total_dur / len(scenes)
+        st = scene_data.get("type", "explain")
+
+        if total_text_chars > 0:
+            char_ratio = scene_text_chars[i] / total_text_chars
         else:
-            sd = total_dur - (len(scenes) - 1) * (total_dur / len(scenes))
+            char_ratio = 1.0 / len(scenes)
+
+        type_min = {
+            "hook": hook_dur * 0.5,
+            "intro": intro_dur * 0.8,
+            "explain": 2.5,
+            "demo": 2.0,
+            "summary": 1.5,
+            "cta": 1.5,
+        }
+        base_min = type_min.get(st, 2.0)
+        type_budget = {
+            "hook": hook_dur,
+            "intro": intro_dur,
+            "explain": explain_dur,
+            "demo": demo_dur,
+            "summary": summary_dur,
+            "cta": cta_dur,
+        }
+        total_budget = type_budget.get(st, explain_dur)
+
+        sd = max(base_min, total_budget * char_ratio * len(scenes))
 
         if sd <= 0:
             sd = 0.5
