@@ -4,13 +4,50 @@ on:
   workflow_dispatch:
     inputs:
       exam:
-        description: 'Exam (neet/upsc/jee)'
+        description: 'Select exam'
         required: true
         default: 'neet'
+        type: choice
+        options:
+          - neet
+          - upsc
+          - jee
+          - gate
+          - ssc-gd
+          - cgl
+          - ibps-po
+          - sbi-clerk
+          - rbi
+          - ctet
+          - agniveer
       chapter:
-        description: 'Chapter number'
+        description: 'Select chapter number'
         required: true
-        default: '8'
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
 
 jobs:
   generate-lecture:
