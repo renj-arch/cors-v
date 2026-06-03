@@ -109,10 +109,39 @@ def draw_on_board(canvas: Image.Image, lines: list[str], y_start: int = 150) -> 
     return img
 
 
-def create_teacher_scene(board_bg: Image.Image | None,
-                         heading: str, bullet_lines: list[str]) -> Image.Image:
-    canvas = create_blackboard(board_bg, heading)
-    canvas = draw_on_board(canvas, bullet_lines)
+def create_visual_scene(visual: Image.Image | None,
+                        heading: str, bullet_lines: list[str]) -> Image.Image:
+    """Create a scene with the generated visual as main content and text overlay at bottom."""
+    if visual:
+        canvas = visual.copy().resize((W, H), Image.LANCZOS)
+    else:
+        canvas = create_lecture_bg()
+
+    draw = ImageDraw.Draw(canvas)
+
+    # Semi-transparent bar at top for heading
+    bar_h = 80
+    bar = Image.new("RGBA", (W, bar_h), (0, 0, 0, 180))
+    canvas.paste(bar, (0, 0), bar)
+    try:
+        font_h = ImageFont.truetype(FONT, 36)
+    except:
+        font_h = ImageFont.load_default()
+    draw.text((30, 18), heading, font=font_h, fill=COLORS["accent2"])
+
+    # Semi-transparent panel at bottom for bullet points
+    panel_h = 140
+    panel = Image.new("RGBA", (W, panel_h), (0, 0, 0, 200))
+    canvas.paste(panel, (0, H - panel_h), panel)
+    try:
+        font_b = ImageFont.truetype(FONT, 26)
+    except:
+        font_b = ImageFont.load_default()
+    y = H - panel_h + 15
+    for line in bullet_lines[:3]:
+        draw.text((30, y), f"  {line}", font=font_b, fill=COLORS["text"])
+        y += 36
+
     return canvas
 
 
@@ -232,37 +261,12 @@ def build_lecture_video(
         if diag_img:
             diag_img = upscale(diag_img)
 
-        if scene_type == "hook" or scene_type == "intro":
-            canvas = create_lecture_bg()
-            canvas = create_blackboard(canvas, heading)
-            canvas = draw_on_board(canvas, lines)
+        if scene_type in ("hook", "intro", "explain", "demo", "diagram"):
+            canvas = create_visual_scene(diag_img, heading, lines)
             scene_images.append(np.array(canvas))
-
-        elif scene_type == "explain":
-            canvas = create_teacher_scene(diag_img, heading, lines)
-            scene_images.append(np.array(canvas))
-
-        elif scene_type == "demo" or scene_type == "diagram":
-            if diag_img:
-                canvas = diag_img.copy()
-                overlay = Image.new("RGBA", (W, int(H * 0.2)), (0, 0, 0, 160))
-                canvas = Image.fromarray(canvas)
-                canvas.paste(overlay, (0, 0), overlay)
-                draw = ImageDraw.Draw(canvas)
-                try:
-                    f = ImageFont.truetype(FONT, 40)
-                    draw.text((40, 20), heading, font=f, fill=COLORS["accent2"])
-                except:
-                    pass
-                scene_images.append(np.array(canvas))
-            else:
-                canvas = create_teacher_scene(None, heading, lines)
-                scene_images.append(np.array(canvas))
 
         elif scene_type == "summary":
-            canvas = create_lecture_bg()
-            canvas = create_blackboard(canvas, "📝 Key Takeaways")
-            canvas = draw_on_board(canvas, lines[:6])
+            canvas = create_visual_scene(None, "Key Takeaways", lines[:6])
             scene_images.append(np.array(canvas))
 
         elif scene_type == "cta":
@@ -272,7 +276,7 @@ def build_lecture_video(
             scene_images.append(np.array(canvas))
 
         else:
-            canvas = create_teacher_scene(None, heading, lines)
+            canvas = create_visual_scene(diag_img, heading, lines)
             scene_images.append(np.array(canvas))
 
         print(f"    Scene {i+1}: {scene_type} — {heading[:40]}")
