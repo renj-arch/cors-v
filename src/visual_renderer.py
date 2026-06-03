@@ -25,12 +25,18 @@ C = {
     "highlight": (255, 100, 80),
 }
 
+FONT_CACHE = {}
+
 
 def _font(size=28):
+    if size in FONT_CACHE:
+        return FONT_CACHE[size]
     try:
-        return ImageFont.truetype(FONT, size)
+        f = ImageFont.truetype(FONT, size)
     except:
-        return ImageFont.load_default()
+        f = ImageFont.load_default()
+    FONT_CACHE[size] = f
+    return f
 
 
 def _bg():
@@ -47,10 +53,10 @@ def _board(draw, bx, by, bw, bh):
                            fill=C["board"], outline=C["board_outline"], width=2)
 
 
-def _heading(draw, bx, by, bw, text):
-    f = _font(36)
-    draw.text((bx + 30, by + 20), text, font=f, fill=C["accent2"])
-    draw.rectangle([bx + 30, by + 72, bx + bw - 30, by + 75], fill=C["accent"])
+def _tw(font, text):
+    """Text width using getbbox."""
+    bbox = font.getbbox(text)
+    return bbox[2] - bbox[0]
 
 
 def _wrap(text, max_w, font):
@@ -59,7 +65,7 @@ def _wrap(text, max_w, font):
     cur = ""
     for w in words:
         test = cur + " " + w if cur else w
-        if font.getbbox(test)[2] <= max_w:
+        if _tw(font, test) <= max_w:
             cur = test
         else:
             if cur:
@@ -67,7 +73,18 @@ def _wrap(text, max_w, font):
             cur = w
     if cur:
         lines.append(cur)
-    return lines
+    return lines if lines else [text[:int(max_w / 8)]]
+
+
+def _draw_wrapped(draw, x, y, text, font, fill, max_w, line_spacing=None):
+    """Draw wrapped text, returns y after last line."""
+    if line_spacing is None:
+        line_spacing = font.size + 6
+    lines = _wrap(text, max_w, font)
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_spacing
+    return y
 
 
 def _arrow(draw, x1, y1, x2, y2, color=None, width=3):
@@ -86,163 +103,170 @@ def _arrow(draw, x1, y1, x2, y2, color=None, width=3):
 def _box(draw, x, y, w, h, text, fill=C["box1"], text_color=C["text"], font_size=24):
     f = _font(font_size)
     draw.rounded_rectangle([x, y, x + w, y + h], radius=8, fill=fill, outline=C["board_outline"], width=2)
-    lines = _wrap(text, w - 20, f)
+    lines = _wrap(text, w - 16, f)
     line_h = font_size + 4
     total_h = len(lines) * line_h
     sy = y + (h - total_h) // 2
     for i, line in enumerate(lines):
-        tw = f.getbbox(line)[2]
+        tw = _tw(f, line)
         draw.text((x + (w - tw) // 2, sy + i * line_h), line, font=f, fill=text_color)
 
 
+def _draw_heading(draw, bx, by, bw, heading):
+    """Draw heading with auto-truncation and underline."""
+    f = _font(32)
+    max_w = bw - 60
+    display = heading
+    while _tw(f, display) > max_w and len(display) > 5:
+        display = display[:-1]
+    if display != heading:
+        display = display[:-3] + "..."
+    draw.text((bx + 30, by + 20), display, font=f, fill=C["accent2"])
+    draw.rectangle([bx + 30, by + 65, bx + _tw(f, display) + 30, by + 68], fill=C["accent"])
+
+
 def render_flowchart(heading, lines):
-    """Step-by-step flowchart with boxes and arrows."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
         return img
 
-    n = min(len(items), 6)
-    box_w = min(220, (bw - 80) // n)
-    box_h = 80
+    n = min(len(items), 5)
+    box_w = min(260, (bw - 80) // n)
+    box_h = 90
     gap = (bw - 80 - n * box_w) // max(n - 1, 1)
+    if gap < 10:
+        gap = 10
+        box_w = (bw - 80 - (n - 1) * gap) // n
     start_x = bx + 40
     y = by + 110
 
     for i, item in enumerate(items[:n]):
         x = start_x + i * (box_w + gap)
         colors = [C["box1"], C["box2"], C["box3"], C["box4"]]
-        _box(draw, x, y, box_w, box_h, f"{i+1}. {item}", fill=colors[i % 4], font_size=22)
+        _box(draw, x, y, box_w, box_h, f"{i+1}. {item}", fill=colors[i % 4], font_size=20)
         if i < n - 1:
-            ax = x + box_w
-            ay2 = y + box_h // 2
-            _arrow(draw, ax + 2, ay2, x + box_w + gap - 2, ay2)
+            _arrow(draw, x + box_w + 2, y + box_h // 2, x + box_w + gap - 2, y + box_h // 2)
 
     return img
 
 
 def render_steps(heading, lines):
-    """Vertical numbered steps with connecting arrows."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
         return img
 
     n = min(len(items), 6)
-    box_h = 55
-    gap = 20
+    box_h = 60
+    gap = 16
     total_h = n * box_h + (n - 1) * gap
     start_y = by + (bh - total_h) // 2 + 40
 
+    f_text = _font(24)
+    max_text_w = bw - 160
+
     for i, item in enumerate(items[:n]):
         y = start_y + i * (box_h + gap)
-        num_w = 40
-        cx = bx + 50
-        draw.ellipse([cx, y + 5, cx + num_w, y + box_h - 5], fill=C["accent2"])
-        fn = _font(20)
-        draw.text((cx + 12, y + 14), str(i + 1), font=fn, fill=(0, 0, 0))
-        tx = cx + num_w + 20
-        tw = bw - (tx - bx) - 40
-        f = _font(24)
-        draw.text((tx, y + 12), item, font=f, fill=C["text"])
+        num_w = 36
+        cx = bx + 45
+        draw.ellipse([cx, y + 6, cx + num_w, y + box_h - 6], fill=C["accent2"])
+        fn = _font(18)
+        draw.text((cx + 12, y + 16), str(i + 1), font=fn, fill=(0, 0, 0))
+        tx = cx + num_w + 16
+        _draw_wrapped(draw, tx, y + 8, item, f_text, C["text"], max_text_w, line_spacing=28)
         if i < n - 1:
-            _arrow(draw, cx + 20, y + box_h + 2, cx + 20, y + box_h + gap - 2,
+            _arrow(draw, cx + 18, y + box_h + 2, cx + 18, y + box_h + gap - 2,
                    color=C["accent3"], width=2)
 
     return img
 
 
 def render_comparison(heading, lines):
-    """Side-by-side comparison columns."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
         return img
 
-    col_w = (bw - 100) // 2
-    col_h = bh - 130
+    col_w = (bw - 120) // 2
     y = by + 110
+    col_h = bh - 140
 
     mid_x = bx + bw // 2
     draw.line([(mid_x, y), (mid_x, y + col_h)], fill=C["board_outline"], width=2)
 
-    left_text = items[:len(items)//2] if len(items) > 1 else items[:1]
-    right_text = items[len(items)//2:] if len(items) > 1 else []
+    mid = len(items) // 2
+    left_text = items[:mid] if mid > 0 else items[:1]
+    right_text = items[mid:] if mid > 0 else []
 
-    f = _font(24)
+    f = _font(22)
     for i, item in enumerate(left_text):
-        iy = y + 20 + i * 40
-        draw.text((bx + 50, iy), f"{i+1}. {item[:50]}", font=f, fill=C["accent3"])
+        iy = y + 12 + i * 36
+        _draw_wrapped(draw, bx + 45, iy, item, f, C["accent3"], col_w - 20, line_spacing=28)
 
     for i, item in enumerate(right_text):
-        iy = y + 20 + i * 40
-        draw.text((mid_x + 50, iy), f"{i+1}. {item[:50]}", font=f, fill=C["accent4"])
+        iy = y + 12 + i * 36
+        _draw_wrapped(draw, mid_x + 45, iy, item, f, C["accent4"], col_w - 20, line_spacing=28)
 
     return img
 
 
 def render_classification(heading, lines):
-    """Hierarchical tree / classification diagram."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
         return img
 
     root_y = by + 100
-    root_w = 300
+    root_w = min(400, bw - 80)
     root_h = 50
     root_x = bx + (bw - root_w) // 2
-    _box(draw, root_x, root_y, root_w, root_h, heading[:35], fill=C["box2"], font_size=24)
+    _box(draw, root_x, root_y, root_w, root_h, heading[:40], fill=C["box2"], font_size=22)
 
     n = min(len(items), 4)
-    child_w = min(200, (bw - 100) // n)
+    child_w = min(240, (bw - 100) // n)
     child_h = 70
-    child_y = root_y + root_h + 60
+    child_y = root_y + root_h + 55
     gap = (bw - 80 - n * child_w) // max(n - 1, 1)
+    if gap < 10:
+        gap = 10
+        child_w = (bw - 80 - (n - 1) * gap) // n
     start_x = bx + 40
 
     for i, item in enumerate(items[:n]):
         cx = start_x + i * (child_w + gap)
-        _box(draw, cx, child_y, child_w, child_h, item, fill=C["box3" if i % 2 else "box1"], font_size=20)
-        arrow_top_x = root_x + root_w // 2
-        arrow_top_y = root_y + root_h
-        arrow_bot_x = cx + child_w // 2
-        arrow_bot_y = child_y
-        if i == 0:
-            _arrow(draw, arrow_top_x, arrow_top_y, arrow_bot_x, arrow_bot_y, width=2)
-        else:
-            _arrow(draw, arrow_top_x, arrow_top_y, arrow_bot_x, arrow_bot_y, width=2)
+        _box(draw, cx, child_y, child_w, child_h, item, fill=C["box3" if i % 2 else "box1"], font_size=18)
+        _arrow(draw, root_x + root_w // 2, root_y + root_h, cx + child_w // 2, child_y, width=2)
 
     return img
 
 
 def render_concept(heading, lines):
-    """Central concept with surrounding detail nodes connected by lines."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
@@ -252,49 +276,48 @@ def render_concept(heading, lines):
     center_r = 60
     draw.ellipse([cx - center_r, cy - center_r, cx + center_r, cy + center_r],
                  fill=C["accent2"], outline=C["board_outline"], width=3)
-    fn = _font(18)
-    tw = fn.getbbox(heading[:20])[2]
-    draw.text((cx - tw // 2, cy - 8), heading[:20], font=fn, fill=(0, 0, 0))
+    fn = _font(17)
+    hw = _tw(fn, heading[:18])
+    draw.text((cx - hw // 2, cy - 8), heading[:18], font=fn, fill=(0, 0, 0))
 
     n = min(len(items), 6)
-    node_r = 50
+    node_r = 55
+    radius = 190
     angle_step = 2 * math.pi / n
     for i, item in enumerate(items[:n]):
         angle = angle_step * i - math.pi / 2
-        nx = cx + int(200 * math.cos(angle))
-        ny = cy + int(200 * math.sin(angle))
+        nx = cx + int(radius * math.cos(angle))
+        ny = cy + int(radius * math.sin(angle))
         draw.line([(cx, cy), (nx, ny)], fill=C["accent"], width=2)
         draw.ellipse([nx - node_r, ny - node_r, nx + node_r, ny + node_r],
                      fill=C["box1"], outline=C["accent"], width=2)
-        f = _font(16)
-        lines_wrapped = _wrap(item[:35], node_r * 2 - 10, f)
-        for li, lw in enumerate(lines_wrapped[:2]):
-            lw_tw = f.getbbox(lw)[2]
-            draw.text((nx - lw_tw // 2, ny - 8 + li * 18), lw, font=f, fill=C["text"])
+        f = _font(15)
+        max_text_w = node_r * 2 - 16
+        _draw_wrapped(draw, nx - node_r + 8, ny - 12, item[:40], f, C["text"], max_text_w, line_spacing=17)
 
     return img
 
 
 def render_bullets(heading, lines):
-    """Styled bullet list with icons."""
     img = _bg()
     draw = ImageDraw.Draw(img)
     bx, by, bw, bh = 60, 60, W - 120, H - 120
     _board(draw, bx, by, bw, bh)
-    _heading(draw, bx, by, bw, heading)
+    _draw_heading(draw, bx, by, bw, heading)
 
     items = [l for l in lines if l]
     if not items:
         return img
 
-    f = _font(26)
-    y = by + 120
+    f = _font(24)
+    max_w = bw - 120
+    y = by + 110
     colors = [C["accent"], C["accent2"], C["accent3"], C["accent4"], C["highlight"]]
     for i, item in enumerate(items[:8]):
         dot_color = colors[i % len(colors)]
-        draw.ellipse([bx + 60, y + 8, bx + 76, y + 24], fill=dot_color)
-        draw.text((bx + 90, y + 4), item[:70], font=f, fill=C["text"])
-        y += 44
+        draw.ellipse([bx + 50, y + 6, bx + 64, y + 20], fill=dot_color)
+        y = _draw_wrapped(draw, bx + 78, y, item, f, C["text"], max_w, line_spacing=30)
+        y += 8
 
     return img
 
