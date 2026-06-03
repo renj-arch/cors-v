@@ -43,16 +43,17 @@ def _llm_complete(prompt: str, system: str = "") -> str:
 
 def generate_lecture_scenes(chapter_title: str, topic_keywords: str, concepts: list[dict]) -> list[dict]:
     system = (
-        "You are the best exam teacher in India. You explain complex topics "
-        "in simple words so even a beginner can understand. "
-        "Generate a structured lecture as a JSON array of scenes. "
-        "Each scene is an object with keys: type, heading, bullets, dialogue, image_prompt. "
+        "You are India's best exam teacher. Students love you because you make "
+        "difficult topics feel like a fun conversation. "
+        "Generate a lecture as a JSON array of scenes. "
+        "Each scene: {type, heading, bullets, dialogue, image_prompt}. "
         "Types: hook, intro, explain, example, demo, summary, cta. "
-        "bullets is a comma-separated string of 2-4 key points. "
-        "dialogue is spoken narration (60-120 words per scene). "
-        "Write dialogue like a friendly teacher talking to a student. "
-        "image_prompt is a short description for visual (no teacher character, use diagrams, icons). "
-        "Return ONLY valid JSON, no markdown wrapping."
+        "bullets: 2-4 key points as comma-separated string. "
+        "dialogue: 60-100 words of conversational Hinglish teaching. "
+        "NEVER use generic sentences like 'Let me explain' or 'This is important'. "
+        "Instead, teach the actual content with specific examples and analogies. "
+        "image_prompt: short visual description (no teacher, use diagrams/icons). "
+        "Return ONLY valid JSON array, no markdown."
     )
 
     concepts_text = "\n".join(
@@ -61,34 +62,22 @@ def generate_lecture_scenes(chapter_title: str, topic_keywords: str, concepts: l
     )
 
     prompt = (
-        f"Create a detailed animated lecture for '{chapter_title}' ({topic_keywords}).\n\n"
-        f"Source concepts:\n{concepts_text}\n\n"
-        "IMPORTANT GUIDELINES:\n"
-        "- Explain like the student knows NOTHING about the topic\n"
-        "- Use simple everyday examples and analogies\n"
-        "- Break each concept into small, easy steps\n"
-        "- Include real-life examples students can relate to\n"
-        "- Point out common mistakes students make\n"
-        "- Give memory tricks and shortcuts for exams\n"
-        "- Each concept should have its own explain scene (6-12 scenes total)\n\n"
-        "Structure:\n"
-        "1. HOOK: Start with a 'imagine this' or 'did you know' question that grabs attention. Make it relatable.\n"
-        "2. INTRO: What will we learn today? Why is this important for exams? Keep it exciting.\n"
-        "3. EXPLAIN scenes (one per concept): Teach like a classroom teacher - step by step.\n"
-        "   - First explain WHAT it is in simple words\n"
-        "   - Then give an EXAMPLE from daily life\n"
-        "   - Then explain WHY it works that way\n"
-        "   - Finally give a MEMORY TRICK for exams\n"
-        "4. DEMO or EXAMPLE: Show a practice question with step-by-step solution\n"
-        "5. SUMMARY: Quick recap of everything learned in 3-4 simple points\n"
-        "6. CTA: Subscribe for more. Ask what topic they want next.\n\n"
-        "Style:\n"
-        "- Use Hinglish (Hindi + English mix) for Indian students if helpful\n"
-        "- Friendly, encouraging tone like 'Beta, yeh concept samajhna bahut easy hai'\n"
-        "- Dialogue must be CONVERSATIONAL, not textbook-like\n"
-        "- Each dialogue should be 60-120 words, complete sentences\n"
-        "- Image prompts should describe simple infographic visuals\n"
-        "- NO teacher character visible - use diagrams, icons, charts only"
+        f"Create an animated lecture for '{chapter_title}'.\n\n"
+        f"Teach these concepts:\n{concepts_text}\n\n"
+        "RULES:\n"
+        "- Each explain scene must teach ONE concept with real example + exam trick\n"
+        "- Dialogues must be UNIQUE for each concept — never repeat phrases\n"
+        "- Use Hinglish: mix Hindi and English naturally\n"
+        "- Teach like a friendly Indian teacher: 'Beta dekho', 'Yaad rakho', 'Simple hai na'\n"
+        "- Include common student mistakes and how to avoid them\n"
+        "- Give memory tricks specific to each concept\n\n"
+        "Structure (5-7 scenes total):\n"
+        "1. HOOK: A 'sochiye' question or surprising fact\n"
+        "2. INTRO: What we'll learn, why it matters\n"
+        "3. EXPLAIN (one scene per concept): teach with example + trick\n"
+        "4. SUMMARY: quick recap of all concepts\n"
+        "5. CTA: subscribe, comment what to cover next\n\n"
+        "IMPORTANT: Every dialogue must teach REAL content, not generic filler."
     )
 
     raw = _llm_complete(prompt, system)
@@ -116,109 +105,92 @@ def generate_lecture_scenes(chapter_title: str, topic_keywords: str, concepts: l
 
 def _fallback_scenes(chapter_title: str, concepts: list[dict]) -> list[dict]:
     scenes = []
+    hook_variations = [
+        f"Aaj hum padhenge {chapter_title}. Yeh topic exams ke liye bahut important hai. Chaliye shuru karte hain!",
+        f"Lagta hai {chapter_title} mushkil hai? Bilkul nahi! Main aaj aapko itna simple tarike se samjhaunga ki aapko yeh topic hamesha yaad rahega.",
+        f"Kya aap jaante hain ki {chapter_title} se har saal 2-3 sawaal aate hain? Is video mein main aapko har concept ko example ke saath samjhaunga.",
+    ]
+    import random
+    hook = random.choice(hook_variations)
     scenes.append({
         "type": "hook",
-        "heading": "Did You Know?",
-        "bullets": "Interesting fact, Why it matters for exam, What we will learn today",
-        "dialogue": (
-            f"Hello students! Do you know that {chapter_title} is one of the most important topics "
-            f"for your exam? Every year, 2-3 questions come from this topic. "
-            f"In this video, I will explain everything step by step in simple words. "
-            f"By the end, you will understand this topic completely. Let's start!"
-        ),
-        "image_prompt": "animated brain with question mark, colorful infographic icons, 16:9",
+        "heading": "Aaj Kya Seekhenge?",
+        "bullets": "Important topic for exam, Easy explanation with examples, Step by step learning",
+        "dialogue": hook,
+        "image_prompt": "animated intro with topic title, colorful educational icons, 16:9",
     })
     scenes.append({
         "type": "intro",
         "heading": chapter_title[:60],
-        "bullets": "What is this topic, Why it is important, What we will cover",
+        "bullets": "What we will cover, Why it matters, Real life connection",
         "dialogue": (
-            f"Today we are going to learn about {chapter_title}. "
-            f"This topic is very important for competitive exams. "
-            f"First, we will understand the basic concepts. "
-            f"Then we will see examples from daily life. "
-            f"After that, I will show you some exam-style questions. "
-            f"And finally, we will do a quick revision. "
-            f"Are you ready? Let's begin!"
+            f"Chaliye samajhte hain {chapter_title} ko detail mein. "
+            f"Main har concept ko tod-tod ke samjhaunga - pehle basic definition, "
+            f"phir ek simple example, phir exam mein kaise aata hai. "
+            f"Beech mein main kuch common mistakes bhi bataunga jo students karte hain. "
+            f"Dhyan se suniye aur mere saath chaliye!"
         ),
-        "image_prompt": "animated topic banner with icons, school classroom theme, infographic, 16:9",
+        "image_prompt": "animated chapter roadmap with numbered steps, infographic style, 16:9",
     })
-    for c in concepts:
+    explanations = [
+        "Samajhiye, {title} ka matlab hai {explanation[:200]}. Isko aise samjho jaise aap roz apni zindagi mein karte hain. Jab aap {example}, tab aap asal mein {title} ka use kar rahe hote hain. Exam mein yeh sawaal aata hai toh aapko bas {title} ka concept apply karna hai. Simple hai na?",
+        "{title} ko samajhne ke liye pehle iska basic samajhte hain. {explanation[:200]}. Ab main aapko ek real life example deta hoon. Maan lijiye aap {example} - yahi hai {title}. Exam mein yeh concept kaise aata hai? Aksar woh aise sawaal puchte hain jahan aapko {title} identify karke answer dena hota hai. Ekdum simple!",
+        "Beta, {title} sunke aapko mushkil lagega, lekin main aapko itna simple bana dunga ki kabhi nahi bhoolenge. {explanation[:200]}. Real life mein iska matlab hai {example}. Exam mein yeh concept usually 2-3 marks ka aata hai. Bas itna yaad rakhein: {title} ka matlab {example} jaisa situation hota hai.",
+        "{title}: Yeh concept thoda tricky hai, isliye main dhyaan se samjhaunga. {explanation[:200]}. Iska sabse simple example hai - {example}. Jaise aap yeh roz karte hain, waise hi exam mein bhi apply karna hai. Meri trick: is concept ko apni favourite cheez se relate karein, phir kabhi nahi bhoolenge!",
+        "Aaj ka pehla concept hai {title}. Yeh kya hai? {explanation[:200]}. Chaliye ek example lete hain: {example}. Dekha kitna simple hai? Exam mein jab bhi aisa sawaal aaye, aapko bas {title} ka rule yaad rakhna hai. Main aapko shortcut batata hoon: {title} ko do minute mein yaad karne ka tareeka hai - bas isko {example} se relate karein!",
+    ]
+    for i, c in enumerate(concepts):
         expl = c["explanation"][:400]
+        example = c.get("example", "") or expl[:100]
+        dia = explanations[i % len(explanations)].format(title=c["title"][:40], explanation=expl, example=example[:100])
         scenes.append({
             "type": "explain",
             "heading": c["title"][:50],
-            "bullets": f"Simple definition, Easy example, Key point to remember",
-            "dialogue": (
-                f"Let me explain {c['title']} in simple words. "
-                f"{expl[:300]} "
-                f"Let me give you an example from daily life to make it clear. "
-                f"Think about it like this: {c['title']} is similar to something you already know. "
-                f"This is a very important concept for your exam. "
-                f"Remember this well because many questions are asked from here."
-            ),
-            "image_prompt": f"animated infographic explaining {c['title']}, colorful diagram with icons, step by step, 16:9",
-        })
-        scenes.append({
-            "type": "example",
-            "heading": f"Example: {c['title'][:35]}",
-            "bullets": "Real life example, Step by step solution, Why this works",
-            "dialogue": (
-                f"Now let me show you an example to understand {c['title']} better. "
-                f"Suppose you have a situation where this concept applies. "
-                f"First, we identify what the question is asking. "
-                f"Then we apply the rule step by step. "
-                f"See how simple it is? Once you understand the basic idea, "
-                f"you can solve any question on this topic. "
-                f"Practice this concept with different examples to become perfect."
-            ),
-            "image_prompt": f"animated example problem with step by step solution, {c['title']}, educational diagram, 16:9",
+            "bullets": f"Simple definition, Real life example, Exam trick",
+            "dialogue": dia,
+            "image_prompt": f"animated diagram explaining {c['title'][:30]}, colorful icons, step by step infographic, 16:9",
         })
     scenes.append({
         "type": "demo",
-        "heading": "Exam Practice Question",
-        "bullets": "Question, Step by step solution, Answer with explanation",
+        "heading": "Ab Aapki Baari! Exam Question",
+        "bullets": "Sawaal, Sochiye aur jawab dijiye, Step by step solution",
         "dialogue": (
-            "Now let's solve an exam-style question together. "
-            "I will read the question, and you try to think of the answer. "
-            "First, understand what the question is asking. "
-            "Then apply the concept we just learned. "
-            "Let me show you the step-by-step solution. "
-            "See how easy it is when you break it down? "
-            "This is exactly how questions appear in your exam. "
-            "Practice more questions like this to improve your speed."
+            "Ab main aapko ek exam-style question dunga. Pehle aap khud sochiye, phir main solution bataunga. "
+            "Sawaal yeh hai: inn concepts mein se kaunsa sahi hai? Rukein, sochiye... "
+            "Sahi jawab hai - jo concept humne abhi padha, wahi yahan apply hoga. "
+            "Dekha? Agar aapne concepts acche se samajh liye, toh exam ke sawaal bahut easy lagte hain. "
+            "Bas practice karte rahiye!"
         ),
-        "image_prompt": "animated question paper with pen and check marks, exam preparation theme, 16:9",
+        "image_prompt": "animated question and answer board with check marks, exam practice theme, 16:9",
     })
+    concept_names = [c["title"][:30] for c in concepts[:4]]
     scenes.append({
         "type": "summary",
-        "heading": "Quick Revision",
-        "bullets": ", ".join(c["title"][:30] for c in concepts[:4]),
+        "heading": "Aaj Humne Kya Seekha?",
+        "bullets": ", ".join(concept_names) if concept_names else "Quick revision, Key points",
         "dialogue": (
-            "Let's quickly revise what we learned today. "
-            + "We understood: " + ", ".join(c["title"] for c in concepts[:3]) +
-            ". " +
-            "Remember the key points I taught you. "
-            "Practice these concepts regularly. "
-            "If you have any doubts, write in the comments. "
-            "I will answer all your questions. "
-            "Keep studying hard and you will definitely succeed!"
+            "Chaliye jaldi se repeat karte hain aaj ka poora lesson. "
+            + "Humne seekha: " + ", ".join(concept_names) + ". "
+            "Yaad rakhiye - har concept ko real life se jodkar padhenge toh kabhi nahi bhoolenge. "
+            "Jo maine aapko tricks batayi hain, woh exam mein bahut kaam aayengi. "
+            "Agar koi doubt ho toh comment mein zaroor bataiye. "
+            "Main har comment padhta hoon aur naye videos banata hoon aapke sawaalon ke hisaab se!"
         ),
-        "image_prompt": "animated summary board with bullet points, revision chart, colorful icons, 16:9",
+        "image_prompt": "animated revision board with bullet points, summary chart with icons, 16:9",
     })
     scenes.append({
         "type": "cta",
-        "heading": "Subscribe for More",
-        "bullets": "Subscribe, Share with friends, Comment your doubt",
+        "heading": "Subscribe Karna Mat Bhoolna!",
+        "bullets": "Subscribe to channel, Share with friends, Comment your topic request",
         "dialogue": (
-            "I hope you enjoyed this lesson and learned something new. "
-            "If this video helped you, please like and subscribe to our channel. "
-            "Share this video with your friends who are also preparing for exams. "
-            "Tell me in the comments which topic you want me to explain next. "
-            "I read every comment and make videos based on your requests. "
-            "Thank you for watching! Keep learning, keep growing!"
+            "Agar aaj ka video aapko helpful laga toh LIKE karein aur channel ko SUBSCRIBE karein. "
+            "Yeh bahut chhoti si cheez hai jo mujhe aur achhe videos banane ke liye motivate karti hai. "
+            "Apne doston ke saath bhi share karein jo exam ki tayyari kar rahe hain. "
+            "Aur haan, comments mein batao ki aapkaunsa topic next chahate hain. "
+            "Main har request padhta hoon aur usi hisaab se videos banata hoon. "
+            "Thank you for watching! Keep learning, keep growing! Jai Hind!"
         ),
-        "image_prompt": "animated subscribe button with bell icon, colorful call to action, 16:9",
+        "image_prompt": "animated subscribe button with bell icon and subscriber count, colorful call to action, 16:9",
     })
     return scenes
 
