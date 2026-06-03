@@ -133,16 +133,16 @@ def _fallback_scenes(chapter_title: str, concepts: list[dict]) -> list[dict]:
         "image_prompt": "animated chapter roadmap with numbered steps, infographic style, 16:9",
     })
     explanations = [
-        "Samajhiye, {title} ka matlab hai {explanation[:200]}. Isko aise samjho jaise aap roz apni zindagi mein karte hain. Jab aap {example}, tab aap asal mein {title} ka use kar rahe hote hain. Exam mein yeh sawaal aata hai toh aapko bas {title} ka concept apply karna hai. Simple hai na?",
-        "{title} ko samajhne ke liye pehle iska basic samajhte hain. {explanation[:200]}. Ab main aapko ek real life example deta hoon. Maan lijiye aap {example} - yahi hai {title}. Exam mein yeh concept kaise aata hai? Aksar woh aise sawaal puchte hain jahan aapko {title} identify karke answer dena hota hai. Ekdum simple!",
-        "Beta, {title} sunke aapko mushkil lagega, lekin main aapko itna simple bana dunga ki kabhi nahi bhoolenge. {explanation[:200]}. Real life mein iska matlab hai {example}. Exam mein yeh concept usually 2-3 marks ka aata hai. Bas itna yaad rakhein: {title} ka matlab {example} jaisa situation hota hai.",
-        "{title}: Yeh concept thoda tricky hai, isliye main dhyaan se samjhaunga. {explanation[:200]}. Iska sabse simple example hai - {example}. Jaise aap yeh roz karte hain, waise hi exam mein bhi apply karna hai. Meri trick: is concept ko apni favourite cheez se relate karein, phir kabhi nahi bhoolenge!",
-        "Aaj ka pehla concept hai {title}. Yeh kya hai? {explanation[:200]}. Chaliye ek example lete hain: {example}. Dekha kitna simple hai? Exam mein jab bhi aisa sawaal aaye, aapko bas {title} ka rule yaad rakhna hai. Main aapko shortcut batata hoon: {title} ko do minute mein yaad karne ka tareeka hai - bas isko {example} se relate karein!",
+        "Samajhiye, {title} ka matlab hai {exp}. Isko aise samjho jaise aap roz apni zindagi mein karte hain. Jab aap {exmp}, tab aap asal mein {title} ka use kar rahe hote hain. Exam mein yeh sawaal aata hai toh aapko bas {title} ka concept apply karna hai. Simple hai na?",
+        "{title} ko samajhne ke liye pehle iska basic samajhte hain. {exp}. Ab main aapko ek real life example deta hoon. Maan lijiye aap {exmp} - yahi hai {title}. Exam mein yeh concept kaise aata hai? Aksar woh aise sawaal puchte hain jahan aapko {title} identify karke answer dena hota hai. Ekdum simple!",
+        "Beta, {title} sunke aapko mushkil lagega, lekin main aapko itna simple bana dunga ki kabhi nahi bhoolenge. {exp}. Real life mein iska matlab hai {exmp}. Exam mein yeh concept usually 2-3 marks ka aata hai. Bas itna yaad rakhein: {title} ka matlab {exmp} jaisa situation hota hai.",
+        "{title}: Yeh concept thoda tricky hai, isliye main dhyaan se samjhaunga. {exp}. Iska sabse simple example hai - {exmp}. Jaise aap yeh roz karte hain, waise hi exam mein bhi apply karna hai. Meri trick: is concept ko apni favourite cheez se relate karein, phir kabhi nahi bhoolenge!",
+        "Aaj ka pehla concept hai {title}. Yeh kya hai? {exp}. Chaliye ek example lete hain: {exmp}. Dekha kitna simple hai? Exam mein jab bhi aisa sawaal aaye, aapko bas {title} ka rule yaad rakhna hai. Main aapko shortcut batata hoon: {title} ko do minute mein yaad karne ka tareeka hai - bas isko {exmp} se relate karein!",
     ]
     for i, c in enumerate(concepts):
-        expl = c["explanation"][:400]
-        example = c.get("example", "") or expl[:100]
-        dia = explanations[i % len(explanations)].format(title=c["title"][:40], explanation=expl, example=example[:100])
+        exp = c["explanation"][:200]
+        exmp = (c.get("example", "") or c["explanation"])[:100]
+        dia = explanations[i % len(explanations)].format(title=c["title"][:40], exp=exp, exmp=exmp)
         scenes.append({
             "type": "explain",
             "heading": c["title"][:50],
