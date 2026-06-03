@@ -241,12 +241,12 @@ def build_lecture_video(
         if scene_type == "summary":
             canvas = visual_renderer.render_bullets("Key Takeaways", lines[:6])
         elif scene_type == "cta":
-            from src.visual_renderer import _bg, _board, _heading
+            from src.visual_renderer import _bg, _board, _draw_heading
             canvas = _bg()
             draw = ImageDraw.Draw(canvas)
             bx, by, bw, bh = 60, 60, visual_renderer.W - 120, visual_renderer.H - 120
             _board(draw, bx, by, bw, bh)
-            _heading(draw, bx, by, bw, heading)
+            _draw_heading(draw, bx, by, bw, heading)
             f = visual_renderer._font(30)
             y = by + 120
             for line in lines:
