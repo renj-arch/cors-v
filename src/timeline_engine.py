@@ -3,10 +3,13 @@
 Each scene is composed of timed layers with individual animations.
 Layers are composited per-frame onto a background, enabling
 progressive reveals, synchronized text, and multi-element motion.
+
+Performance: each layer is pre-rendered to a RGBA numpy array once.
+Per-frame compositing uses numpy alpha blending (no PIL in the loop).
 """
 
 from __future__ import annotations
-import math, random
+import math, random, hashlib, threading
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Callable
@@ -61,7 +64,7 @@ class TextLayer:
 
 @dataclass
 class ShapeLayer:
-    shape_type: str  # "rect", "rounded_rect", "circle", "line"
+    shape_type: str
     x: int
     y: int
     w: int
@@ -100,8 +103,6 @@ class ArrowLayer:
 
 
 class Layer:
-    """A single timed element in a scene."""
-
     def __init__(
         self,
         start_time: float,
@@ -119,221 +120,352 @@ class Layer:
 class SceneTimeline:
     """Timeline of layers composing one scene.
 
-    Renders to a (duration, height, width, 3) numpy array clip
-    with all layers composited per frame.
+    Each layer is pre-rendered to a RGBA numpy array once.
+    Per-frame compositing is pure numpy alpha blending — no PIL in the loop.
     """
 
     def __init__(self, duration: float):
         self.duration = duration
         self.layers: list[Layer] = []
         self.bg_image: Image.Image | None = None
+        self._bg_np: np.ndarray | None = None
+        self._prepped: list[_PrepLayer] | None = None
 
     def add_layer(self, layer: Layer):
         self.layers.append(layer)
 
     def set_background(self, bg: Image.Image):
         self.bg_image = bg
+        self._bg_np = None
 
-    def _render_bg(self) -> Image.Image:
+    def _get_bg(self) -> np.ndarray:
+        if self._bg_np is not None:
+            return self._bg_np
         if self.bg_image:
-            return self.bg_image.copy().resize((W, H), Image.LANCZOS)
-        canvas = Image.new("RGB", (W, H), COLORS["bg"])
-        draw = ImageDraw.Draw(canvas)
-        for y in range(0, H, 4):
-            shade = int(20 + 10 * math.sin(y / 80))
-            draw.line([(0, y), (W, y)], fill=(shade, shade + 5, shade + 15))
-        return canvas
+            pil = self.bg_image.copy().resize((W, H), Image.LANCZOS)
+        else:
+            pil = Image.new("RGB", (W, H), COLORS["bg"])
+            draw = ImageDraw.Draw(pil)
+            for y in range(0, H, 4):
+                shade = int(20 + 10 * math.sin(y / 80))
+                draw.line([(0, y), (W, y)], fill=(shade, shade + 5, shade + 15))
+        self._bg_np = np.array(pil)
+        return self._bg_np
 
-    def build_clip(self, fps: int = config.VIDEO_FPS) -> VideoClip:
-        layers_sorted = sorted(self.layers, key=lambda l: l.start_time)
 
-        def make_frame(t):
-            if t >= self.duration:
-                t = self.duration - 0.01
-            bg = self._render_bg()
-            composite = bg.copy()
-            draw = ImageDraw.Draw(composite, "RGBA")
+class _PrepLayer:
+    """A layer with its element pre-rendered to RGBA numpy."""
 
-            for layer in layers_sorted:
-                if t < layer.start_time or t > layer.end_time():
-                    continue
-                local_t = t - layer.start_time
-                elem = layer.element
-                anim_dur = self._resolve_anim_duration(elem)
-                progress = min(local_t / anim_dur, 1.0) if anim_dur > 0 else 1.0
+    def __init__(self, layer: Layer):
+        self.start_time = layer.start_time
+        self.duration = layer.duration
+        self.elem = layer.element
+        self.is_text = isinstance(layer.element, TextLayer)
+        self.is_shape = isinstance(layer.element, ShapeLayer)
+        self.is_arrow = isinstance(layer.element, ArrowLayer)
 
-                self._draw_element(composite, draw, elem, progress, local_t)
+        anim = getattr(layer.element, "animation", AnimType.FADE_IN)
+        self.anim_type = anim
 
-            return np.array(composite)
+        self.rgba: np.ndarray | None = None
+        self.base_x: int = 0
+        self.base_y: int = 0
+        self.w: int = 0
+        self.h: int = 0
 
-        return VideoClip(make_frame, duration=self.duration)
+        if self.is_text:
+            self._prep_text()
+        elif self.is_shape:
+            self._prep_shape()
+        elif self.is_arrow:
+            self._prep_arrow()
 
-    def _resolve_anim_duration(
-        self, elem: TextLayer | ShapeLayer | ImageLayer | ArrowLayer
-    ) -> float:
-        if hasattr(elem, "animation_duration") and elem.animation_duration:
-            return elem.animation_duration
-        return 0.3
-
-    def _draw_element(
-        self,
-        composite: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        elem: TextLayer | ShapeLayer | ImageLayer | ArrowLayer,
-        progress: float,
-        local_t: float,
-    ):
-        alpha = self._alpha_from_progress(elem, progress)
-        if alpha <= 0:
-            return
-
-        if isinstance(elem, TextLayer):
-            self._draw_text_layer(composite, draw, elem, progress, alpha)
-        elif isinstance(elem, ShapeLayer):
-            self._draw_shape_layer(draw, elem, progress, alpha)
-        elif isinstance(elem, ImageLayer):
-            self._draw_image_layer(composite, elem, progress, alpha)
-        elif isinstance(elem, ArrowLayer):
-            self._draw_arrow_layer(draw, elem, progress, alpha)
-
-    def _alpha_from_progress(
-        self, elem, progress: float
-    ) -> float:
-        anim = getattr(elem, "animation", AnimType.FADE_IN)
-        if anim == AnimType.NONE:
-            return 1.0
-        return min(progress * 1.5, 1.0)
-
-    def _draw_text_layer(
-        self,
-        composite: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        elem: TextLayer,
-        progress: float,
-        alpha: float,
-    ):
+    def _prep_text(self):
+        e = self.elem
         try:
-            font = ImageFont.truetype(FONT, elem.font_size)
+            font = ImageFont.truetype(FONT, e.font_size)
         except Exception:
             font = ImageFont.load_default()
+        try:
+            bbox = font.getbbox(e.text)
+            self.w = bbox[2] - bbox[0] + 4
+            self.h = bbox[3] - bbox[1] + 4
+        except Exception:
+            self.w = len(e.text) * e.font_size
+            self.h = e.font_size + 4
 
-        text = elem.text
-        anim = elem.animation
-        x, y = elem.x, elem.y
+        if self.w < 1 or self.h < 1:
+            self.w, self.h = 10, 10
 
-        if anim == AnimType.TYPEWRITER:
-            visible_chars = max(1, int(len(text) * progress))
-            text = text[:visible_chars]
-        elif anim == AnimType.SLIDE_LEFT:
-            offset = int((1 - progress) * 80)
-            x -= offset
-        elif anim == AnimType.SLIDE_RIGHT:
-            offset = int((1 - progress) * 80)
-            x += offset
-        elif anim == AnimType.SLIDE_UP:
-            offset = int((1 - progress) * 60)
-            y += offset
-        elif anim == AnimType.SLIDE_DOWN:
-            offset = int((1 - progress) * 60)
-            y -= offset
-        elif anim == AnimType.POP:
-            scale = min(progress * 2, 1.0)
-            if scale < 0.01:
-                return
+        img = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.text((2, 2), e.text, font=font, fill=(*e.color, 255))
+        self.rgba = np.array(img)
+        self.base_x = e.x
+        self.base_y = e.y
+
+    def _prep_shape(self):
+        e = self.elem
+        self.w, self.h = max(e.w, 1), max(e.h, 1)
+        img = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        fill_rgba = (*e.fill, 255)
+        outline_rgba = (*e.outline, 255) if e.outline else None
+
+        if e.shape_type in ("rect", "rounded_rect"):
+            if e.shape_type == "rounded_rect":
+                draw.rounded_rectangle([0, 0, self.w, self.h], radius=e.radius,
+                                       fill=fill_rgba, outline=outline_rgba, width=2)
+            else:
+                draw.rectangle([0, 0, self.w, self.h],
+                               fill=fill_rgba, outline=outline_rgba, width=2)
+        elif e.shape_type == "circle":
+            draw.ellipse([0, 0, self.w, self.h],
+                         fill=fill_rgba, outline=outline_rgba, width=2)
+
+        self.rgba = np.array(img)
+        self.base_x = e.x
+        self.base_y = e.y
+
+    def _prep_arrow(self):
+        e = self.elem
+        self.w = abs(e.x2 - e.x1) + 20
+        self.h = abs(e.y2 - e.y1) + 20
+        if self.w < 1:
+            self.w = 10
+        if self.h < 1:
+            self.h = 10
+        self.base_x = min(e.x1, e.x2) - 10
+        self.base_y = min(e.y1, e.y2) - 10
+        img = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        ax = e.x1 - self.base_x
+        ay = e.y1 - self.base_y
+        bx = e.x2 - self.base_x
+        by = e.y2 - self.base_y
+        draw.line([(ax, ay), (bx, by)], fill=(*e.color, 255), width=e.width)
+        dx, dy = bx - ax, by - ay
+        angle = math.atan2(dy, dx)
+        head_len = 12
+        hx1 = bx - head_len * math.cos(angle - 0.4)
+        hy1 = by - head_len * math.sin(angle - 0.4)
+        hx2 = bx - head_len * math.cos(angle + 0.4)
+        hy2 = by - head_len * math.sin(angle + 0.4)
+        draw.polygon([(bx, by), (int(hx1), int(hy1)), (int(hx2), int(hy2))], fill=(*e.color, 255))
+        self.rgba = np.array(img)
+
+    def get_alpha(self, progress: float) -> float:
+        if self.anim_type == AnimType.NONE:
+            return 1.0
+        return float(np.clip(progress * 1.5, 0.0, 1.0))
+
+    def get_offset(self, progress: float) -> tuple[int, int]:
+        ox, oy = 0, 0
+        t = self.anim_type
+        if t == AnimType.SLIDE_LEFT:
+            ox = -int((1 - progress) * 80)
+        elif t == AnimType.SLIDE_RIGHT:
+            ox = int((1 - progress) * 80)
+        elif t == AnimType.SLIDE_UP:
+            oy = -int((1 - progress) * 80)
+        elif t == AnimType.SLIDE_DOWN:
+            oy = int((1 - progress) * 80)
+        return ox, oy
+
+    def get_char_count(self, progress: float) -> int | None:
+        if self.anim_type == AnimType.TYPEWRITER and self.is_text:
+            return max(1, int(len(self.elem.text) * progress))
+        return None
+
+    def get_scale(self, progress: float) -> float | None:
+        if self.anim_type == AnimType.POP and self.is_text:
+            s = min(progress * 2.0, 1.0)
+            if s < 0.01:
+                return 0.0
+            return s
+        return None
+
+
+def _alpha_blend(bg: np.ndarray, fg: np.ndarray, x: int, y: int, alpha: float):
+    """Alpha-blend fg (RGBA) onto bg (RGB) at position (x,y) with global alpha."""
+    h, w = fg.shape[:2]
+    if h <= 0 or w <= 0:
+        return
+    x0 = max(0, x)
+    y0 = max(0, y)
+    x1 = min(bg.shape[1], x + w)
+    y1 = min(bg.shape[0], y + h)
+    if x0 >= x1 or y0 >= y1:
+        return
+
+    fx0 = x0 - x
+    fy0 = y0 - y
+    fx1 = fx0 + (x1 - x0)
+    fy1 = fy0 + (y1 - y0)
+
+    fg_slice = fg[fy0:fy1, fx0:fx1]
+    bg_slice = bg[y0:y1, x0:x1]
+
+    if alpha < 1.0:
+        a = (fg_slice[:, :, 3].astype(np.float32) / 255.0) * alpha
+    else:
+        a = fg_slice[:, :, 3].astype(np.float32) / 255.0
+
+    a = a[:, :, np.newaxis]
+    bg[y0:y1, x0:x1] = (bg_slice.astype(np.float32) * (1 - a) + fg_slice[:, :, :3].astype(np.float32) * a).astype(np.uint8)
+
+
+def _composite_frame(
+    bg_np: np.ndarray,
+    prepped: list[_PrepLayer],
+    t: float,
+) -> np.ndarray:
+    """Composite all visible layers at time t onto background copy."""
+    frame = bg_np.copy()
+
+    for pl in prepped:
+        if t < pl.start_time or t > pl.start_time + pl.duration:
+            continue
+
+        progress = 0.0
+        local_t = t - pl.start_time
+        anim_dur = pl.elem.animation_duration if hasattr(pl.elem, "animation_duration") else 0.3
+        if anim_dur > 0:
+            progress = min(local_t / anim_dur, 1.0)
+
+        alpha = pl.get_alpha(progress)
+        if alpha <= 0:
+            continue
+
+        ox, oy = pl.get_offset(progress)
+        x = pl.base_x + ox
+        y = pl.base_y + oy
+
+        if pl.anim_type == AnimType.TYPEWRITER and pl.is_text:
+            char_count = max(1, int(len(pl.elem.text) * progress))
+            e = pl.elem
             try:
-                scaled_size = max(int(elem.font_size * scale), 8)
+                font = ImageFont.truetype(FONT, e.font_size)
+            except Exception:
+                font = ImageFont.load_default()
+            visible_text = e.text[:char_count]
+            try:
+                bbox = font.getbbox(visible_text)
+                tw = bbox[2] - bbox[0] + 4
+                th = bbox[3] - bbox[1] + 4
+            except Exception:
+                tw, th = 10, e.font_size + 4
+            if tw < 1 or th < 1:
+                continue
+            img = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            draw.text((2, 2), visible_text, font=font, fill=(*e.color, 255))
+            text_rgba = np.array(img)
+            _alpha_blend(frame, text_rgba, x, y, alpha)
+            continue
+
+        if pl.anim_type == AnimType.POP and pl.is_text:
+            scale = min(progress * 2.0, 1.0)
+            if scale < 0.01:
+                continue
+            e = pl.elem
+            scaled_size = max(int(e.font_size * scale), 8)
+            try:
                 font = ImageFont.truetype(FONT, scaled_size)
             except Exception:
                 font = ImageFont.load_default()
+            try:
+                bbox = font.getbbox(e.text)
+                tw = bbox[2] - bbox[0] + 4
+                th = bbox[3] - bbox[1] + 4
+            except Exception:
+                tw, th = 10, scaled_size + 4
+            if tw < 1 or th < 1:
+                continue
+            img = Image.new("RGBA", (tw + 4, th + 4), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            draw.text((2, 2), e.text, font=font, fill=(*e.color, 255))
+            text_rgba = np.array(img)
+            cx = x + (pl.w // 2) - (tw // 2)
+            cy = y + (pl.h // 2) - (th // 2)
+            _alpha_blend(frame, text_rgba, cx, cy, alpha)
+            continue
 
-        text_color = elem.color
-        if elem.highlight_color and progress > 0.5:
-            text_color = elem.highlight_color
+        if pl.is_arrow:
+            arr_elem = pl.elem
+            if progress < 0.1:
+                continue
+            end_progress = min(progress * 1.2, 1.0)
+            ex = arr_elem.x1 + (arr_elem.x2 - arr_elem.x1) * end_progress
+            ey = arr_elem.y1 + (arr_elem.y2 - arr_elem.y1) * end_progress
+            ax, ay = min(arr_elem.x1, int(ex)) - 10, min(arr_elem.y1, int(ey)) - 10
+            aw = abs(arr_elem.x1 - int(ex)) + 20
+            ah = abs(arr_elem.y1 - int(ey)) + 20
+            if aw < 1 or ah < 1:
+                continue
+            arrow_img = Image.new("RGBA", (aw, ah), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(arrow_img)
+            draw.line([(arr_elem.x1 - ax, arr_elem.y1 - ay), (int(ex) - ax, int(ey) - ay)],
+                      fill=(*arr_elem.color, 255), width=arr_elem.width)
+            if progress >= 0.8:
+                dx, dy = arr_elem.x2 - arr_elem.x1, arr_elem.y2 - arr_elem.y1
+                angle = math.atan2(dy, dx)
+                head_len = 12
+                hx1 = arr_elem.x2 - head_len * math.cos(angle - 0.4)
+                hy1 = arr_elem.y2 - head_len * math.sin(angle - 0.4)
+                hx2 = arr_elem.x2 - head_len * math.cos(angle + 0.4)
+                hy2 = arr_elem.y2 - head_len * math.sin(angle + 0.4)
+                draw.polygon([(arr_elem.x2, arr_elem.y2), (int(hx1), int(hy1)), (int(hx2), int(hy2))],
+                             fill=(*arr_elem.color, 255))
+            arrow_rgba = np.array(arrow_img)
+            _alpha_blend(frame, arrow_rgba, ax, ay, alpha)
+            continue
 
-        try:
-            bbox = font.getbbox(text)
-            tw = bbox[2] - bbox[0]
-            th = bbox[3] - bbox[1]
-        except Exception:
-            tw, th = len(text) * elem.font_size // 2, elem.font_size
+        if pl.rgba is not None:
+            _alpha_blend(frame, pl.rgba, x, y, alpha)
 
-        composite_rgba = composite.convert("RGBA")
-        txt_img = Image.new("RGBA", (tw + 4, th + 4), (0, 0, 0, 0))
-        txt_draw = ImageDraw.Draw(txt_img)
-        txt_draw.text((2, 2), text, font=font, fill=(*text_color, int(255 * alpha)))
-        composite_rgba.paste(txt_img, (x, y), txt_img)
-        composite.paste(composite_rgba.convert("RGB"))
+    return frame
 
-    def _draw_shape_layer(
-        self,
-        draw: ImageDraw.ImageDraw,
-        elem: ShapeLayer,
-        progress: float,
-        alpha: int,
-    ):
-        fill = (*elem.fill, int(255 * alpha))
-        outline = elem.outline
-        outline_rgba = (*outline, int(255 * alpha)) if outline else None
 
-        if elem.shape_type in ("rect", "rounded_rect"):
-            if elem.shape_type == "rounded_rect":
-                draw.rounded_rectangle(
-                    [elem.x, elem.y, elem.x + elem.w, elem.y + elem.h],
-                    radius=elem.radius, fill=fill, outline=outline_rgba, width=2,
-                )
-            else:
-                draw.rectangle(
-                    [elem.x, elem.y, elem.x + elem.w, elem.y + elem.h],
-                    fill=fill, outline=outline_rgba, width=2,
-                )
-        elif elem.shape_type == "circle":
-            draw.ellipse(
-                [elem.x, elem.y, elem.x + elem.w, elem.y + elem.h],
-                fill=fill, outline=outline_rgba, width=2,
-            )
+class _CachedSceneClip(VideoClip):
+    """A VideoClip backed by a pre-rendered frame cache."""
 
-    def _draw_image_layer(
-        self,
-        composite: Image.Image,
-        elem: ImageLayer,
-        progress: float,
-        alpha: float,
-    ):
-        img = elem.pil_image
-        w = elem.w or img.width
-        h = elem.h or img.height
-        img_resized = img.copy().resize((w, h), Image.LANCZOS)
-        if alpha < 1.0:
-            img_resized = img_resized.convert("RGBA")
-            r, g, b, a = img_resized.split()
-            a = a.point(lambda x: int(x * alpha))
-            img_resized = Image.merge("RGBA", (r, g, b, a))
-        composite_rgba = composite.convert("RGBA")
-        composite_rgba.paste(img_resized, (elem.x, elem.y), img_resized)
-        composite.paste(composite_rgba.convert("RGB"))
+    def __init__(self, cache: list[np.ndarray], fps: int, duration: float):
+        self._cache = cache
+        self._fps = fps
+        self._clip_duration = duration
+        super().__init__(frame_function=self._make_frame)
+        self.duration = duration
+        self.end = duration
 
-    def _draw_arrow_layer(
-        self,
-        draw: ImageDraw.ImageDraw,
-        elem: ArrowLayer,
-        progress: float,
-        alpha: float,
-    ):
-        if progress < 0.1:
-            return
-        end_x = elem.x1 + (elem.x2 - elem.x1) * min(progress * 1.2, 1.0)
-        end_y = elem.y1 + (elem.y2 - elem.y1) * min(progress * 1.2, 1.0)
-        color = (*elem.color, int(255 * alpha))
-        draw.line([(elem.x1, elem.y1), (int(end_x), int(end_y))], fill=color, width=elem.width)
-        if progress >= 0.8:
-            dx, dy = elem.x2 - elem.x1, elem.y2 - elem.y1
-            angle = math.atan2(dy, dx)
-            head_len = 12
-            ax = elem.x2 - head_len * math.cos(angle - 0.4)
-            ay = elem.y2 - head_len * math.sin(angle - 0.4)
-            bx = elem.x2 - head_len * math.cos(angle + 0.4)
-            by = elem.y2 - head_len * math.sin(angle + 0.4)
-            draw.polygon([(elem.x2, elem.y2), (int(ax), int(ay)), (int(bx), int(by))], fill=color)
+    def _make_frame(self, t):
+        dur = self._clip_duration
+        if dur is not None and t >= dur:
+            t = dur - 0.001
+        fi = min(int(t * self._fps), len(self._cache) - 1)
+        return self._cache[fi]
+
+
+def build_clip(self, fps: int = config.VIDEO_FPS) -> VideoClip:
+    """Build a VideoClip with pre-rendered frame cache."""
+    prepped = [_PrepLayer(l) for l in self.layers]
+    bg_np = self._get_bg()
+
+    total_frames = max(1, int(self.duration * fps))
+    print(f"    Rendering {total_frames} frames ({len(prepped)} layers)...")
+
+    cache = [None] * total_frames
+    for fi in range(total_frames):
+        t = fi / fps
+        if t >= self.duration:
+            t = self.duration - 0.001
+        cache[fi] = _composite_frame(bg_np, prepped, t)
+
+    print(f"    Done — {len(cache)} frames cached")
+    return _CachedSceneClip(cache, fps, self.duration)
+
+
+SceneTimeline.build_clip = build_clip
 
 
 def build_standard_scene(
@@ -343,10 +475,7 @@ def build_standard_scene(
     scene_type: str = "explain",
     bg_image: Image.Image | None = None,
 ) -> SceneTimeline:
-    """Build a SceneTimeline with standard lecture layout:
-    - Heading slides in at top
-    - Bullet points fade/slide in one by one
-    """
+    """Build a SceneTimeline with standard lecture layout."""
     tl = SceneTimeline(duration)
 
     if bg_image:
@@ -412,7 +541,8 @@ def build_standard_scene(
             font_size=26,
             color=COLORS["text"],
             animation=anim,
-            animation_duration=0.4, delay=delay,
+            animation_duration=0.4,
+            delay=delay,
         )
         tl.add_layer(Layer(delay, duration - delay, bullet_layer))
 
