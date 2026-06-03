@@ -9,7 +9,7 @@ from src.text_to_speech import generate_tts
 from src.video_builder import build_lecture_video
 
 
-EXAMS = ["neet", "upsc", "jee", "gate", "ssc-gd", "cgl", "ibps-po", "sbi-clerk", "rbi", "ctet"]
+EXAMS = ["neet", "upsc", "jee", "gate", "ssc-gd", "cgl", "ibps-po", "sbi-clerk", "rbi", "ctet", "agniveer"]
 
 
 def main():
