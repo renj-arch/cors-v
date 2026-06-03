@@ -7,10 +7,36 @@ on:
         required: true
         type: choice
         options:
-          - "1 - General Knowledge Important Questions"
-          - "2 - Mathematics Important Questions"
-          - "3 - Reasoning Important Questions"
-          - "4 - Science Important Questions"
+          - "Analogies - Verbal and Non-verbal"
+          - "Number Series, Letter Series & Alpha-Numeric Series"
+          - "Classification and Odd One Out"
+          - "Coding-Decoding"
+          - "Blood Relations and Family Trees"
+          - "Direction Sense and Distance"
+          - "Puzzles and Seating Arrangements"
+          - "Syllogisms and Statements"
+          - "Number System, LCM and HCF"
+          - "Percentage, Average and Ratio-Proportion"
+          - "Profit, Loss, Discount and Simple Interest"
+          - "Time, Work, Speed and Distance"
+          - "Algebra, Geometry and Mensuration"
+          - "Data Interpretation and Statistics"
+          - "Physics - Motion, Force and Newton's Laws"
+          - "Physics - Work, Energy and Power"
+          - "Physics - Light, Sound and Electricity"
+          - "Chemistry - Atoms, Elements and Compounds"
+          - "Chemistry - Acids, Bases, Salts and Metals"
+          - "Biology - Cell, Tissues and Human Body Systems"
+          - "Biology - Nutrition, Health and Diseases"
+          - "Environmental Science and Ecology"
+          - "Indian History - Ancient and Medieval Periods"
+          - "Indian History - Modern India and Freedom Struggle"
+          - "Indian Geography - Physical Features"
+          - "Indian Geography - Economic and Social Geography"
+          - "Indian Polity - Constitution and Governance"
+          - "Indian Economy - Basics and Development"
+          - "Science and Technology Developments"
+          - "Sports, Awards, Honors and Current Affairs"
 
 jobs:
   generate-lecture:
@@ -43,11 +69,7 @@ jobs:
           LLM_MODEL: openrouter/free
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
-        run: |
-          CH="${{ inputs.chapter }}"
-          CH_NUM=$(echo "$CH" | cut -d' ' -f1)
-          echo "CH_NUM=$CH_NUM" >> $GITHUB_ENV
-          python course_video.py agniveer "$CH_NUM"
+        run: python course_video.py agniveer "${{ inputs.chapter }}"
 
       - name: Upload video artifact
         uses: actions/upload-artifact@v4

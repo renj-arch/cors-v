@@ -28,11 +28,15 @@ def main():
         try:
             chapter_num = int(sys.argv[2])
         except ValueError:
-            print(f"  Invalid chapter number: {sys.argv[2]}. Using 1.")
+            chapter_num = 0
 
-    ch_info = get_chapter_info(exam, chapter_num)
+    if chapter_num > 0:
+        ch_info = get_chapter_info(exam, chapter_num)
+    else:
+        ch_info = get_chapter_info(exam, title=sys.argv[2])
+
     if not ch_info:
-        print(f"  No chapter {chapter_num} found for {exam}.")
+        print(f"  No chapter '{sys.argv[2]}' found for {exam}.")
         return
 
     print(f"\n  Exam: {exam.upper()}")

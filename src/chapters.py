@@ -162,8 +162,26 @@ def _extract_description(html_path: Path) -> str:
     return ""
 
 
-def get_chapter_info(exam: str = "neet", chapter_number: int = 1) -> dict | None:
+def get_chapter_info(exam: str = "neet", chapter_number: int = 1, title: str = "") -> dict | None:
     chapters = list_chapters(exam)
+
+    # If title is provided, match by title
+    if title:
+        title_lower = title.lower().strip()
+        for ch in chapters:
+            if ch["title"].lower().strip() == title_lower:
+                html_path = Path(ch["file"])
+                concepts = extract_concepts(html_path)
+                return {
+                    "exam": exam,
+                    "title": ch["title"],
+                    "filename": ch["filename"],
+                    "concepts": concepts,
+                    "description": _extract_description(html_path),
+                    "question_count": len(get_chapter_questions(html_path)),
+                }
+        return None
+
     # Try numeric filename match first (neet)
     for ch in chapters:
         if _extract_chapter_number(ch["filename"]) == chapter_number:
