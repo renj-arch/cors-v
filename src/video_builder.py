@@ -4,7 +4,6 @@ import io, random, math
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import numpy as np
-import requests as req
 from moviepy import (
     VideoClip, AudioFileClip, ImageClip, TextClip,
     CompositeVideoClip, concatenate_videoclips, ColorClip,
@@ -12,6 +11,7 @@ from moviepy import (
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 import config
+from src import visual_renderer
 
 FONT = config.get_font()
 W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
@@ -28,24 +28,6 @@ COLORS = {
 }
 
 
-
-
-def gen_image(prompt: str, w: int = W, h: int = H) -> Image.Image | None:
-    url = f"https://image.pollinations.ai/prompt/{req.utils.quote(prompt)}?width={w}&height={h}&nofeed=true&seed={random.randint(0,999999)}&model=flux"
-    try:
-        r = req.get(url, timeout=120)
-        if r.status_code == 200 and len(r.content) > 500:
-            return Image.open(io.BytesIO(r.content)).convert("RGB")
-    except:
-        pass
-    return None
-
-
-def upscale(img: Image.Image) -> Image.Image:
-    img = img.resize((W, H), Image.LANCZOS)
-    img = ImageEnhance.Contrast(img).enhance(1.15)
-    img = ImageEnhance.Color(img).enhance(1.1)
-    return img
 
 
 def create_lecture_bg() -> Image.Image:
@@ -256,29 +238,25 @@ def build_lecture_video(
         if not lines:
             lines = [heading]
 
-        img_prompt = scene.get("image_prompt", f"educational illustration: {heading}, infographic, 16:9")
-        diag_img = gen_image(img_prompt)
-        if diag_img:
-            diag_img = upscale(diag_img)
-
-        if scene_type in ("hook", "intro", "explain", "demo", "diagram"):
-            canvas = create_visual_scene(diag_img, heading, lines)
-            scene_images.append(np.array(canvas))
-
-        elif scene_type == "summary":
-            canvas = create_visual_scene(None, "Key Takeaways", lines[:6])
-            scene_images.append(np.array(canvas))
-
+        if scene_type == "summary":
+            canvas = visual_renderer.render_bullets("Key Takeaways", lines[:6])
         elif scene_type == "cta":
-            canvas = create_lecture_bg()
-            canvas = create_blackboard(canvas, heading)
-            canvas = draw_on_board(canvas, lines)
-            scene_images.append(np.array(canvas))
-
+            from src.visual_renderer import _bg, _board, _heading
+            canvas = _bg()
+            draw = ImageDraw.Draw(canvas)
+            bx, by, bw, bh = 60, 60, visual_renderer.W - 120, visual_renderer.H - 120
+            _board(draw, bx, by, bw, bh)
+            _heading(draw, bx, by, bw, heading)
+            f = visual_renderer._font(30)
+            y = by + 120
+            for line in lines:
+                tw = f.getbbox(line)[2]
+                draw.text((bx + (bw - tw) // 2, y), line, font=f, fill=(255, 255, 255))
+                y += 50
         else:
-            canvas = create_visual_scene(diag_img, heading, lines)
-            scene_images.append(np.array(canvas))
+            canvas = visual_renderer.render_scene(scene_type, heading, lines)
 
+        scene_images.append(np.array(canvas))
         print(f"    Scene {i+1}: {scene_type} — {heading[:40]}")
 
     print("  Assembling lecture...")
