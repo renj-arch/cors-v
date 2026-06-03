@@ -224,13 +224,6 @@ def build_lecture_video(
     total_dur = audio.duration
     audio.close()
 
-    cta_dur = total_dur * 0.07
-    explain_dur = total_dur * 0.65
-    hook_dur = total_dur * 0.06
-    intro_dur = total_dur * 0.08
-    demo_dur = total_dur * 0.08
-    summary_dur = total_dur * 0.06
-
     print(f"\n  Generating {len(scenes)} lecture scenes...")
 
     scene_images = []
@@ -265,39 +258,21 @@ def build_lecture_video(
     total_text_chars = sum(scene_text_chars)
     min_dur = 1.5
 
+    # Allocate durations proportional to text content, normalize to total_dur
+    raw_durs = []
+    for chars in scene_text_chars:
+        if total_text_chars > 0:
+            d = max(min_dur, total_dur * chars / total_text_chars)
+        else:
+            d = total_dur / len(scenes)
+        raw_durs.append(d)
+    sum_raw = sum(raw_durs)
+    durations = [d * total_dur / sum_raw for d in raw_durs] if sum_raw > 0 else [total_dur / len(scenes)] * len(scenes)
+
     clips = []
 
     for i, (scene_data, img_arr) in enumerate(zip(scenes, scene_images)):
-        st = scene_data.get("type", "explain")
-
-        if total_text_chars > 0:
-            char_ratio = scene_text_chars[i] / total_text_chars
-        else:
-            char_ratio = 1.0 / len(scenes)
-
-        type_min = {
-            "hook": hook_dur * 0.5,
-            "intro": intro_dur * 0.8,
-            "explain": 2.5,
-            "demo": 2.0,
-            "summary": 1.5,
-            "cta": 1.5,
-        }
-        base_min = type_min.get(st, 2.0)
-        type_budget = {
-            "hook": hook_dur,
-            "intro": intro_dur,
-            "explain": explain_dur,
-            "demo": demo_dur,
-            "summary": summary_dur,
-            "cta": cta_dur,
-        }
-        total_budget = type_budget.get(st, explain_dur)
-
-        sd = max(base_min, total_budget * char_ratio * len(scenes))
-
-        if sd <= 0:
-            sd = 0.5
+        sd = durations[i]
 
         if sd > 1.5:
             main = ken_burns_zoom(img_arr, sd * 0.92, zoom_max=0.08)
