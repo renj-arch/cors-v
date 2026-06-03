@@ -225,9 +225,8 @@ def build_lecture_video(
 ) -> Path:
     """Build the lecture video.
 
-    If use_animation=True (default), each scene becomes an animated
-    timeline composition with progressive reveals and motion graphics.
-    If False, falls back to static images with Ken Burns zoom.
+    Each scene is rendered to a temp file individually to limit memory.
+    Temp files are concatenated at the end with audio overlay.
     """
     audio = AudioFileClip(str(audio_path))
     total_dur = audio.duration
@@ -262,69 +261,94 @@ def build_lecture_video(
     sum_raw = sum(raw_durs)
     durations = [d * total_dur / sum_raw for d in raw_durs] if sum_raw > 0 else [total_dur / len(scenes)] * len(scenes)
 
-    scene_clips = []
-    for si, scene in enumerate(scenes):
-        sd = durations[si]
-        heading = scene.get("heading", "")
-        scene_type = scene.get("type", "explain")
+    temp_dir = config.TEMP_DIR / f"scenes_{random.randint(1000, 9999)}"
+    temp_dir.mkdir(exist_ok=True, parents=True)
 
-        print(f"    Scene {si+1}: {scene_type} — {heading[:40]} ({sd:.1f}s)")
+    temp_videos = []
+    try:
+        for si, scene in enumerate(scenes):
+            sd = durations[si]
+            heading = scene.get("heading", "")
+            scene_type = scene.get("type", "explain")
+            print(f"    Scene {si+1}: {scene_type} — {heading[:40]} ({sd:.1f}s)")
 
-        if use_animation and sd >= 1.5:
-            clip = scene_composer.compose_scene(scene, sd)
-        else:
-            clip = scene_composer.build_scene_from_static(scene, sd)
+            if use_animation and sd >= 1.5:
+                clip = scene_composer.compose_scene(scene, sd)
+            else:
+                clip = scene_composer.build_scene_from_static(scene, sd)
 
-        scene_clips.append(clip)
+            temp_path = temp_dir / f"scene_{si:03d}.mp4"
+            clip.write_videofile(
+                str(temp_path),
+                fps=config.RENDER_FPS,
+                codec="libx264",
+                audio_codec="aac",
+                threads=2,
+                preset="ultrafast",
+                ffmpeg_params=["-movflags", "+faststart"],
+                logger=None,
+            )
+            clip.close()
+            temp_videos.append(temp_path)
+            print(f"      Wrote {temp_path.name}")
 
-    print("  Assembling lecture...")
+        if not temp_videos:
+            print("  No scenes rendered.")
+            return output_path
 
-    if scene_clips:
+        print("  Concatenating scenes...")
+        from moviepy import VideoFileClip
+        scene_clips = [VideoFileClip(str(p)) for p in temp_videos]
         bg = concatenate_videoclips(scene_clips, method="compose")
-    else:
-        bg = ColorClip(color=COLORS["bg"], duration=max(total_dur, 1), size=config.VIDEO_SIZE)
 
-    overlays = []
+        overlays = []
 
-    ch_label = TextClip(text=f"{exam.upper()} Lecture", font=FONT, font_size=18,
-                        color=COLORS["accent"], stroke_color="black", stroke_width=1,
-                        method="label")
-    ch_label = ch_label.with_position((20, 20)).with_duration(bg.duration).with_start(0)
-    overlays.append(ch_label)
+        ch_label = TextClip(text=f"{exam.upper()} Lecture", font=FONT, font_size=18,
+                            color=COLORS["accent"], stroke_color="black", stroke_width=1,
+                            method="label")
+        ch_label = ch_label.with_position((20, 20)).with_duration(bg.duration).with_start(0)
+        overlays.append(ch_label)
 
-    from src.engagement import subscribe_end_card, comment_prompt
-    overlays += comment_prompt(start_time=max(bg.duration * 0.6, 10.0), duration=3.0)
-    end_card = subscribe_end_card(3.0).with_start(bg.duration)
-    final_dur = bg.duration + 3.0
+        from src.engagement import subscribe_end_card, comment_prompt
+        overlays += comment_prompt(start_time=max(bg.duration * 0.6, 10.0), duration=3.0)
+        end_card = subscribe_end_card(3.0).with_start(bg.duration)
+        final_dur = bg.duration + 3.0
 
-    final = CompositeVideoClip([bg] + overlays + [end_card], size=config.VIDEO_SIZE)
-    final = final.with_duration(final_dur)
+        final = CompositeVideoClip([bg] + overlays + [end_card], size=config.VIDEO_SIZE)
+        final = final.with_duration(final_dur)
 
-    audio_clip = AudioFileClip(str(audio_path))
-    if final_dur > audio_clip.duration:
-        silence = AudioFileClip(str(audio_path)).with_duration(final_dur - audio_clip.duration).with_volume_scaled(0)
-        audio_clip = concatenate_audioclips([audio_clip, silence])
+        audio_clip = AudioFileClip(str(audio_path))
+        if final_dur > audio_clip.duration:
+            silence = AudioFileClip(str(audio_path)).with_duration(final_dur - audio_clip.duration).with_volume_scaled(0)
+            audio_clip = concatenate_audioclips([audio_clip, silence])
 
-    music_paths = list(config.MUSIC_DIR.glob("*.mp3"))
-    if music_paths:
-        music = AudioFileClip(str(random.choice(music_paths)))
-        music = music.with_duration(final_dur).with_volume_scaled(0.06)
-        music = music.with_effects([AudioFadeIn(1.0), AudioFadeOut(2.0)])
-        final = final.with_audio(CompositeAudioClip([audio_clip, music]))
-    else:
-        final = final.with_audio(audio_clip)
+        music_paths = list(config.MUSIC_DIR.glob("*.mp3"))
+        if music_paths:
+            music = AudioFileClip(str(random.choice(music_paths)))
+            music = music.with_duration(final_dur).with_volume_scaled(0.06)
+            music = music.with_effects([AudioFadeIn(1.0), AudioFadeOut(2.0)])
+            final = final.with_audio(CompositeAudioClip([audio_clip, music]))
+        else:
+            final = final.with_audio(audio_clip)
 
-    print(f"  Rendering {final_dur:.1f}s animated lecture...")
-    final.write_videofile(
-        str(output_path),
-        fps=config.VIDEO_FPS,
-        codec="libx264",
-        audio_codec="aac",
-        threads=4,
-        preset="ultrafast",
-        ffmpeg_params=["-movflags", "+faststart"],
-        logger=None,
-    )
-    final.close()
-    print(f"  Done: {output_path}")
+        print(f"  Rendering {final_dur:.1f}s final video...")
+        final.write_videofile(
+            str(output_path),
+            fps=config.VIDEO_FPS,
+            codec="libx264",
+            audio_codec="aac",
+            threads=4,
+            preset="ultrafast",
+            ffmpeg_params=["-movflags", "+faststart"],
+            logger=None,
+        )
+        final.close()
+        for c in scene_clips:
+            c.close()
+        print(f"  Done: {output_path}")
+
+    finally:
+        import shutil
+        shutil.rmtree(str(temp_dir), ignore_errors=True)
+
     return output_path
