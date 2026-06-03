@@ -1,0 +1,75 @@
+name: "NEET Biology"
+on:
+  workflow_dispatch:
+    inputs:
+      chapter:
+        description: 'Chapter'
+        required: true
+        type: choice
+        options:
+          - "1 - The Living World"
+          - "2 - Biological Classification"
+          - "3 - Plant Kingdom"
+          - "4 - Animal Kingdom"
+          - "5 - Morphology of Flowering Plants"
+          - "6 - Anatomy of Flowering Plants"
+          - "7 - Structural Organization in Animals"
+          - "8 - Cell The Unit of Life"
+          - "9 - Biomolecules"
+          - "10 - Cell Cycle and Cell Division"
+          - "11 - Transport in Plants"
+          - "12 - Mineral Nutrition"
+          - "13 - Photosynthesis in Higher Plants"
+          - "14 - Respiration in Plants"
+          - "15 - Plant Growth and Development"
+          - "16 - Digestion and Absorption"
+          - "17 - Breathing and Exchange of Gases"
+          - "18 - Body Fluids and Circulation"
+          - "19 - Excretory Products and Their Elimination"
+          - "20 - Locomotion and Movement"
+          - "21 - Neural Control and Coordination"
+          - "22 - Chemical Coordination and Integration"
+
+jobs:
+  generate-lecture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout coursevi
+        uses: actions/checkout@v4
+
+      - name: Checkout study content
+        uses: actions/checkout@v4
+        with:
+          repository: renj-arch/dimsred
+          path: study
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install edge-tts
+
+      - name: Generate animated lecture
+        env:
+          LLM_PROVIDER: openrouter
+          LLM_MODEL: openrouter/free
+          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          STUDY_PROJECT: ${{ github.workspace }}/study
+        run: |
+          CH="${{ inputs.chapter }}"
+          CH_NUM=$(echo "$CH" | cut -d' ' -f1)
+          echo "CH_NUM=$CH_NUM" >> $GITHUB_ENV
+          python course_video.py neet "$CH_NUM"
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: animated-lecture-neet-${{ inputs.chapter }}
+          path: output/*.mp4
+          retention-days: 7

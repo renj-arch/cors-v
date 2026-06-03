@@ -1,53 +1,16 @@
-name: Generate Animated Lecture Video
-
+name: "CGL"
 on:
   workflow_dispatch:
     inputs:
-      exam:
-        description: 'Select exam'
-        required: true
-        default: 'neet'
-        type: choice
-        options:
-          - neet
-          - upsc
-          - jee
-          - gate
-          - ssc-gd
-          - cgl
-          - ibps-po
-          - sbi-clerk
-          - rbi
-          - ctet
-          - agniveer
       chapter:
-        description: 'Select chapter number'
+        description: 'Chapter'
         required: true
-        default: '1'
         type: choice
         options:
-          - '1'
-          - '2'
-          - '3'
-          - '4'
-          - '5'
-          - '6'
-          - '7'
-          - '8'
-          - '9'
-          - '10'
-          - '11'
-          - '12'
-          - '13'
-          - '14'
-          - '15'
-          - '16'
-          - '17'
-          - '18'
-          - '19'
-          - '20'
-          - '21'
-          - '22'
+          - "1 - English Important Questions"
+          - "2 - General Awareness Important Questions"
+          - "3 - Quantitative Aptitude Important Questions"
+          - "4 - Reasoning Important Questions"
 
 jobs:
   generate-lecture:
@@ -81,11 +44,14 @@ jobs:
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
         run: |
-          python course_video.py ${{ inputs.exam }} ${{ inputs.chapter }}
+          CH="${{ inputs.chapter }}"
+          CH_NUM=$(echo "$CH" | cut -d' ' -f1)
+          echo "CH_NUM=$CH_NUM" >> $GITHUB_ENV
+          python course_video.py cgl "$CH_NUM"
 
       - name: Upload video artifact
         uses: actions/upload-artifact@v4
         with:
-          name: animated-lecture-${{ inputs.exam }}-ch${{ inputs.chapter }}
+          name: animated-lecture-cgl-${{ inputs.chapter }}
           path: output/*.mp4
           retention-days: 7
