@@ -250,9 +250,12 @@ def get_chapter_info(exam: str = "neet", chapter_number: int = 1, title: str = "
 
     # If title is provided, match by title
     if title:
-        title_lower = title.lower().strip()
+        def _normalize(s):
+            return re.sub(r'\s+', ' ', s).lower().strip().replace('-', ' ').replace('\u2014', ' ').replace('–', ' ')
+        target = _normalize(title)
         for ch in chapters:
-            if ch["title"].lower().strip() == title_lower:
+            ch_norm = _normalize(ch["title"])
+            if ch_norm == target or ch_norm.startswith(target) or target.startswith(ch_norm):
                 html_path = Path(ch["file"])
                 concepts = extract_concepts(html_path)
                 return {
@@ -263,6 +266,22 @@ def get_chapter_info(exam: str = "neet", chapter_number: int = 1, title: str = "
                     "description": _extract_description(html_path),
                     "question_count": len(get_chapter_questions(html_path)),
                 }
+        # Fallback: try matching against filename stem
+        for ch in chapters:
+            fn_norm = ch["filename"].lower().replace('-', ' ').replace('_', ' ')
+            if target in fn_norm or fn_norm in target:
+                html_path = Path(ch["file"])
+                concepts = extract_concepts(html_path)
+                return {
+                    "exam": exam,
+                    "title": ch["title"],
+                    "filename": ch["filename"],
+                    "concepts": concepts,
+                    "description": _extract_description(html_path),
+                    "question_count": len(get_chapter_questions(html_path)),
+                }
+        print(f"  Chapter '{title}' not found via title or filename match.")
+        print(f"  Available chapters: {[ch['title'] for ch in chapters]}")
         return None
 
     # Try numeric filename match first (neet)
