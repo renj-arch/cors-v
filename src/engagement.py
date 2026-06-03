@@ -9,10 +9,10 @@ import config
 
 FONT = config.get_font()
 W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
-CHANNEL_NAME = "Dingdong"
-CHANNEL_HANDLE = "@dingdong"
+CHANNEL_NAME = "Vlymbooq"
+CHANNEL_HANDLE = "@vlymbooq"
 
-LOGO_PATH = Path(__file__).resolve().parent.parent / "dingdong_logo.png"
+LOGO_PATH = Path(__file__).resolve().parent.parent / "vlymbooq_logo.png"
 
 
 def fast_zoom(img_array, dur: float, zoom_in: bool = True, intensity: float = 0.15) -> VideoClip:

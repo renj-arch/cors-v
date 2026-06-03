@@ -67,7 +67,7 @@ def build_description(title: str, exam: str, slides: list[dict]) -> str:
         exam=exam.upper(),
         timestamps="\n".join(timestamps[:10]),
         concepts="\n".join(concepts[:10]),
-        channel_handle="@dingdong",
+        channel_handle="@vlymbooq",
     )
 
 
@@ -93,7 +93,7 @@ def upload(video_path: str, title: str = "", description: str = "",
     if not title:
         title = "Concept Explained | Educational Video"
     if not description:
-        description = f"Subscribe for more educational videos! @dingdong\n#education #{exam}"
+        description = f"Subscribe for more educational videos! @vlymbooq\n#education #{exam}"
     if not tags:
         tags = ["education", exam, "concept", "explained"]
 
