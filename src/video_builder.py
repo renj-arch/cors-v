@@ -5,7 +5,7 @@ Supports both:
 - Legacy: static image + Ken Burns zoom (use_animation=False)
 """
 
-import io, random, math
+import io, random, math, gc
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import numpy as np
@@ -289,6 +289,7 @@ def build_lecture_video(
                 logger=None,
             )
             clip.close()
+            gc.collect()
             temp_videos.append(temp_path)
             print(f"      Wrote {temp_path.name}")
 
