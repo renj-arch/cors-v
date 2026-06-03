@@ -10,6 +10,11 @@ on:
           - "1 - Csat Important Questions"
           - "2 - Current Affairs Important Questions"
           - "3 - General Studies Important Questions"
+      parts:
+        description: 'Split into how many parts?'
+        required: true
+        type: number
+        default: 1
 
 jobs:
   generate-lecture:
@@ -17,37 +22,32 @@ jobs:
     steps:
       - name: Checkout coursevi
         uses: actions/checkout@v4
-
       - name: Checkout study content
         uses: actions/checkout@v4
         with:
           repository: renj-arch/dimsred
           path: study
           token: ${{ secrets.GH_PAT }}
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install edge-tts
-
       - name: Generate animated lecture
         env:
           LLM_PROVIDER: openrouter
           LLM_MODEL: openrouter/free
           LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUDY_PROJECT: ${{ github.workspace }}/study
+          PARTS: ${{ inputs.parts }}
         run: |
           CH="${{ inputs.chapter }}"
           CH_NUM=$(echo "$CH" | cut -d' ' -f1)
-          echo "CH_NUM=$CH_NUM" >> $GITHUB_ENV
           python course_video.py upsc "$CH_NUM"
-
       - name: Upload video artifact
         uses: actions/upload-artifact@v4
         with:
