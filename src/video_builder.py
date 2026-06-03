@@ -1,4 +1,4 @@
-"""Animated lecture-style video builder with teacher character, transitions, and visual effects."""
+"""Animated lecture-style video builder with transitions and visual effects."""
 
 import io, random, math
 from pathlib import Path
@@ -27,8 +27,7 @@ COLORS = {
     "board": (30, 35, 50),
 }
 
-TEACHER_PROMPT = "friendly male teacher with glasses smiling, pointing at board, classroom background, warm lighting, professional, 3D animated style, pixar style, 16:9"
-TEACHER_EXPLAIN_PROMPT = "friendly male teacher explaining concept with hand gesture, pointing at diagram, classroom, warm lighting, professional, 3D animated style, pixar style, 16:9"
+
 
 
 def gen_image(prompt: str, w: int = W, h: int = H) -> Image.Image | None:
@@ -110,15 +109,9 @@ def draw_on_board(canvas: Image.Image, lines: list[str], y_start: int = 150) -> 
     return img
 
 
-def create_teacher_scene(teacher_img: Image.Image | None, board_bg: Image.Image | None,
+def create_teacher_scene(board_bg: Image.Image | None,
                          heading: str, bullet_lines: list[str]) -> Image.Image:
     canvas = create_blackboard(board_bg, heading)
-
-    if teacher_img:
-        t_img = teacher_img.copy().resize((int(W * 0.3), int(H * 0.4)), Image.LANCZOS)
-        tx, ty = W - t_img.width - 30, H - t_img.height - 30
-        canvas.paste(t_img, (tx, ty))
-
     canvas = draw_on_board(canvas, bullet_lines)
     return canvas
 
@@ -223,10 +216,6 @@ def build_lecture_video(
     scene_dur = total_dur / max(len(scenes), 1)
 
     print(f"\n  Generating {len(scenes)} lecture scenes...")
-    teacher_img = gen_image(TEACHER_PROMPT)
-    if teacher_img:
-        teacher_img = upscale(teacher_img)
-        print("  Teacher character generated")
 
     scene_images = []
     for i, scene in enumerate(scenes):
@@ -238,26 +227,22 @@ def build_lecture_video(
         if not lines:
             lines = [heading]
 
-        img_prompt = scene.get("image_prompt", f"educational illustration: {heading}, cartoon style, classroom, friendly, 16:9")
+        img_prompt = scene.get("image_prompt", f"educational illustration: {heading}, infographic, 16:9")
         diag_img = gen_image(img_prompt)
         if diag_img:
             diag_img = upscale(diag_img)
 
-        if scene_type == "intro":
+        if scene_type == "hook" or scene_type == "intro":
             canvas = create_lecture_bg()
             canvas = create_blackboard(canvas, heading)
             canvas = draw_on_board(canvas, lines)
-            if teacher_img:
-                t = teacher_img.copy().resize((int(W * 0.25), int(H * 0.35)), Image.LANCZOS)
-                canvas.paste(t, (W - t.width - 40, H - t.height - 40))
             scene_images.append(np.array(canvas))
 
         elif scene_type == "explain":
-            canvas = create_teacher_scene(teacher_img if i % 3 == 0 else None,
-                                          diag_img, heading, lines)
+            canvas = create_teacher_scene(diag_img, heading, lines)
             scene_images.append(np.array(canvas))
 
-        elif scene_type == "diagram":
+        elif scene_type == "demo" or scene_type == "diagram":
             if diag_img:
                 canvas = diag_img.copy()
                 overlay = Image.new("RGBA", (W, int(H * 0.2)), (0, 0, 0, 160))
@@ -271,7 +256,7 @@ def build_lecture_video(
                     pass
                 scene_images.append(np.array(canvas))
             else:
-                canvas = create_teacher_scene(None, None, heading, lines)
+                canvas = create_teacher_scene(None, heading, lines)
                 scene_images.append(np.array(canvas))
 
         elif scene_type == "summary":
@@ -280,8 +265,14 @@ def build_lecture_video(
             canvas = draw_on_board(canvas, lines[:6])
             scene_images.append(np.array(canvas))
 
+        elif scene_type == "cta":
+            canvas = create_lecture_bg()
+            canvas = create_blackboard(canvas, heading)
+            canvas = draw_on_board(canvas, lines)
+            scene_images.append(np.array(canvas))
+
         else:
-            canvas = create_teacher_scene(teacher_img, None, heading, lines)
+            canvas = create_teacher_scene(None, heading, lines)
             scene_images.append(np.array(canvas))
 
         print(f"    Scene {i+1}: {scene_type} — {heading[:40]}")
