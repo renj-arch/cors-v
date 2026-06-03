@@ -3,6 +3,7 @@
 from pathlib import Path
 import re
 import config
+from bs4 import BeautifulSoup
 
 
 EXAM_DIRS = {
@@ -49,80 +50,114 @@ def _extract_title(html_path: Path) -> str:
     return html_path.stem.replace("-", " ").title()
 
 
-def get_chapter_questions(html_path: Path) -> list[dict]:
-    text = html_path.read_text(encoding="utf-8", errors="ignore")
+def _clean_html_text(s: str) -> str:
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _parse_lesson_questions(soup: BeautifulSoup) -> list[dict]:
+    """Parse questions from lesson page HTML (q-card elements)."""
     questions = []
+    for card in soup.select(".q-card"):
+        qid = len(questions)
+        q_text_el = card.select_one(".q-text")
+        q_text = _clean_html_text(q_text_el.get_text()) if q_text_el else ""
 
-    # Extract each question object between { }
-    qtext = text
-    # Find JSON array of questions
-    start = qtext.find("var questions = ")
-    if start >= 0:
-        start = qtext.index("[", start)
-        depth = 0
-        objs = []
-        cur_start = None
-        for i in range(start, len(qtext)):
-            ch = qtext[i]
-            if ch == "{":
-                if depth == 0:
-                    cur_start = i
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0 and cur_start is not None:
-                    objs.append(qtext[cur_start:i+1])
-                    cur_start = None
-            elif ch == "]" and depth == 0:
-                break
+        topic_el = card.select_one(".q-topic")
+        topic = _clean_html_text(topic_el.get_text()) if topic_el else ""
 
-        esc = r'(?:[^"\\]|\\.)*'
+        sol_el = card.select_one(".q-soln")
+        sol = _clean_html_text(sol_el.get_text()) if sol_el else ""
+        sol = re.sub(r'^Answer[:\s]*', '', sol, flags=re.IGNORECASE).strip()
 
-        for obj in objs:
+        options = []
+        for opt in card.select(".q-opt"):
+            label_el = opt.select_one(".opt-letter")
+            label = _clean_html_text(label_el.get_text()) if label_el else ""
+            text_el = opt.select_one(".opt-text")
+            opt_text = _clean_html_text(text_el.get_text()) if text_el else ""
+            correct = opt.get("data-correct") == "1"
+            options.append({"label": label, "text": opt_text, "correct": correct})
+
+        questions.append({
+            "id": qid,
+            "text": q_text,
+            "topic": topic,
+            "options": options,
+            "solution": sol,
+        })
+    return questions
+
+
+def _parse_json_questions(text: str) -> list[dict]:
+    """Parse questions from old JSON format (var questions = [...] or var qs = [...])."""
+    questions = []
+    start = text.find("var questions = ")
+    if start < 0:
+        start = text.find("var qs = ")
+    if start < 0:
+        return questions
+
+    start = text.index("[", start)
+    depth = 0
+    objs = []
+    cur_start = None
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            if depth == 0:
+                cur_start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and cur_start is not None:
+                objs.append(text[cur_start:i + 1])
+                cur_start = None
+        elif ch == "]" and depth == 0:
+            break
+
+    esc = r'(?:[^"\\]|\\.)*'
+
+    for obj in objs:
+        m = re.search(
+            r'"id":\s*(\d+)\s*,'
+            r'.*?"text":"(' + esc + r')",'
+            r'.*?"topic":"(' + esc + r')",'
+            r'.*?"(?:opts|options)":\s*\[(.*?)\]\s*,'
+            r'.*?"sol":"(' + esc + r')"',
+            obj, re.DOTALL
+        )
+        swapped = False
+        if not m:
             m = re.search(
                 r'"id":\s*(\d+)\s*,'
-                r'.*?"text":"(' + esc + r')",'
                 r'.*?"topic":"(' + esc + r')",'
+                r'.*?"text":"(' + esc + r')",'
                 r'.*?"(?:opts|options)":\s*\[(.*?)\]\s*,'
                 r'.*?"sol":"(' + esc + r')"',
                 obj, re.DOTALL
             )
-            swapped = False
-            if not m:
-                # Try swapped order (topic before text)
-                m = re.search(
-                    r'"id":\s*(\d+)\s*,'
-                    r'.*?"topic":"(' + esc + r')",'
-                    r'.*?"text":"(' + esc + r')",'
-                    r'.*?"(?:opts|options)":\s*\[(.*?)\]\s*,'
-                    r'.*?"sol":"(' + esc + r')"',
-                    obj, re.DOTALL
-                )
-                swapped = True
-            if not m:
-                continue
+            swapped = True
+        if not m:
+            continue
 
-            def clean(s):
-                return s.replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"')
+        def _esc_clean(s):
+            return s.replace("\\u0026", "&").replace("\\n", " ").replace('\\"', '"')
 
-            qid = int(m.group(1))
-            if swapped:
-                qtext_val = clean(m.group(3))
-                topic = clean(m.group(2))
-            else:
-                qtext_val = clean(m.group(2))
-                topic = clean(m.group(3))
-            opts_raw = m.group(4)
-            sol = clean(m.group(5))
+        qid = int(m.group(1))
+        qtext_val = _esc_clean(m.group(3 if swapped else 2))
+        topic = _esc_clean(m.group(2 if swapped else 3))
+        opts_raw = m.group(4)
+        sol = _esc_clean(m.group(5))
 
-            options = []
-            opt_pattern = re.compile(r'\{"l":"([^"]*)","t":"((?:[^"\\]|\\.)*)"(,"c":(?:true|false))?\}')
-            for om in opt_pattern.finditer(f"[{opts_raw}]"):
-                options.append({
-                    "label": om.group(1),
-                    "text": clean(om.group(2)),
-                    "correct": "true" in (om.group(3) or ""),
-                })
+        options = []
+        opt_pattern = re.compile(r'\{"l":"([^"]*)","t":"((?:[^"\\]|\\.)*)"(,"c":(?:true|false))?\}')
+        for om in opt_pattern.finditer(f"[{opts_raw}]"):
+            options.append({
+                "label": om.group(1),
+                "text": _esc_clean(om.group(2)),
+                "correct": "true" in (om.group(3) or ""),
+            })
+
         questions.append({
             "id": qid,
             "text": qtext_val,
@@ -133,10 +168,56 @@ def get_chapter_questions(html_path: Path) -> list[dict]:
     return questions
 
 
+def get_chapter_questions(html_path: Path) -> list[dict]:
+    text = html_path.read_text(encoding="utf-8", errors="ignore")
+    soup = BeautifulSoup(text, "html.parser")
+    questions = _parse_lesson_questions(soup)
+    if questions:
+        return questions
+    return _parse_json_questions(text)
+
+
 def extract_concepts(html_path: Path) -> list[dict]:
+    text = html_path.read_text(encoding="utf-8", errors="ignore")
+    soup = BeautifulSoup(text, "html.parser")
+    concepts = []
+
+    # Try lesson page format: sections → concepts
+    sections = soup.select(".lesson-section")
+    if sections:
+        for sec in sections:
+            h2 = sec.select_one(".lesson-h2")
+            body = sec.select_one(".lesson-body")
+            title = _clean_html_text(h2.get_text()) if h2 else ""
+            explanation = _clean_html_text(body.get_text()) if body else ""
+            if title and explanation:
+                concepts.append({"title": title, "explanation": explanation, "example": ""})
+
+        # Add examples as additional concepts
+        for ex in soup.select(".ex-card"):
+            q_el = ex.select_one(".ex-q")
+            sol_el = ex.select_one(".ex-sol")
+            if q_el and sol_el:
+                q_text = _clean_html_text(q_el.get_text())
+                sol_text = _clean_html_text(sol_el.get_text())
+                title = re.sub(r'^(Example\s*\d*[:.]?\s*|Solution[:.]?\s*)', '', q_text, flags=re.IGNORECASE).strip()[:60]
+                concepts.append({"title": f"Example: {title}", "explanation": sol_text, "example": q_text})
+
+        # Add key points as one concept
+        kp = soup.select_one(".key-points")
+        if kp:
+            points = [li.get_text(strip=True) for li in kp.select("li")]
+            concepts.append({
+                "title": "Key Points",
+                "explanation": " ".join(points),
+                "example": "",
+            })
+
+        return concepts
+
+    # Fallback: extract from questions (old format)
     questions = get_chapter_questions(html_path)
     topics_seen = set()
-    concepts = []
     for q in questions:
         topic = q["topic"]
         if topic and topic not in topics_seen:
