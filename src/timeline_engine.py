@@ -55,7 +55,7 @@ class TextLayer:
     y: int
     font_size: int = 28
     color: tuple[int, int, int] = COLORS["text"]
-    max_width: int = 800
+    max_width: int = 1400
     animation: AnimType = AnimType.FADE_IN
     animation_duration: float = 0.4
     delay: float = 0.0
@@ -180,27 +180,58 @@ class _PrepLayer:
         elif self.is_arrow:
             self._prep_arrow()
 
-    def _prep_text(self):
-        e = self.elem
+    @staticmethod
+    def _render_text(text: str, font_size: int, color: tuple, max_width: int) -> tuple[np.ndarray, int, int]:
+        """Render text with wrapping to RGBA numpy array. Returns (rgba, w, h)."""
         try:
-            font = ImageFont.truetype(FONT, e.font_size)
+            font = ImageFont.truetype(FONT, font_size)
         except Exception:
             font = ImageFont.load_default()
-        try:
-            bbox = font.getbbox(e.text)
-            self.w = bbox[2] - bbox[0] + 4
-            self.h = bbox[3] - bbox[1] + 4
-        except Exception:
-            self.w = len(e.text) * e.font_size
-            self.h = e.font_size + 4
 
+        if max_width < 10:
+            max_width = 800
+
+        words = text.split()
+        lines = []
+        cur = ""
+        for w in words:
+            test = cur + " " + w if cur else w
+            try:
+                bbox = font.getbbox(test)
+                tw = bbox[2] - bbox[0]
+            except Exception:
+                tw = len(test) * font_size
+            if tw <= max_width:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        if not lines:
+            lines = [text]
+
+        line_height = font_size + 6
+        total_w = max_width
+        total_h = len(lines) * line_height + 4
+        if total_h < 1:
+            total_h = line_height + 4
+
+        img = Image.new("RGBA", (total_w, total_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        y = 2
+        for line in lines:
+            draw.text((2, y), line, font=font, fill=(*color, 255))
+            y += line_height
+        return np.array(img), total_w, total_h
+
+    def _prep_text(self):
+        e = self.elem
+        max_w = getattr(e, "max_width", 800) or 800
+        self.rgba, self.w, self.h = self._render_text(e.text, e.font_size, e.color, max_w)
         if self.w < 1 or self.h < 1:
             self.w, self.h = 10, 10
-
-        img = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        draw.text((2, 2), e.text, font=font, fill=(*e.color, 255))
-        self.rgba = np.array(img)
         self.base_x = e.x
         self.base_y = e.y
 
@@ -344,23 +375,11 @@ def _composite_frame(
         if pl.anim_type == AnimType.TYPEWRITER and pl.is_text:
             char_count = max(1, int(len(pl.elem.text) * progress))
             e = pl.elem
-            try:
-                font = ImageFont.truetype(FONT, e.font_size)
-            except Exception:
-                font = ImageFont.load_default()
+            max_w = getattr(e, "max_width", 800) or 800
             visible_text = e.text[:char_count]
-            try:
-                bbox = font.getbbox(visible_text)
-                tw = bbox[2] - bbox[0] + 4
-                th = bbox[3] - bbox[1] + 4
-            except Exception:
-                tw, th = 10, e.font_size + 4
+            text_rgba, tw, th = _PrepLayer._render_text(visible_text, e.font_size, e.color, max_w)
             if tw < 1 or th < 1:
                 continue
-            img = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-            draw.text((2, 2), visible_text, font=font, fill=(*e.color, 255))
-            text_rgba = np.array(img)
             _alpha_blend(frame, text_rgba, x, y, alpha)
             continue
 
@@ -369,23 +388,11 @@ def _composite_frame(
             if scale < 0.01:
                 continue
             e = pl.elem
+            max_w = getattr(e, "max_width", 800) or 800
             scaled_size = max(int(e.font_size * scale), 8)
-            try:
-                font = ImageFont.truetype(FONT, scaled_size)
-            except Exception:
-                font = ImageFont.load_default()
-            try:
-                bbox = font.getbbox(e.text)
-                tw = bbox[2] - bbox[0] + 4
-                th = bbox[3] - bbox[1] + 4
-            except Exception:
-                tw, th = 10, scaled_size + 4
+            text_rgba, tw, th = _PrepLayer._render_text(e.text, scaled_size, e.color, max_w)
             if tw < 1 or th < 1:
                 continue
-            img = Image.new("RGBA", (tw + 4, th + 4), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-            draw.text((2, 2), e.text, font=font, fill=(*e.color, 255))
-            text_rgba = np.array(img)
             cx = x + (pl.w // 2) - (tw // 2)
             cy = y + (pl.h // 2) - (th // 2)
             _alpha_blend(frame, text_rgba, cx, cy, alpha)
