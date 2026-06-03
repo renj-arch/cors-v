@@ -43,6 +43,8 @@ def _extract_title(html_path: Path) -> str:
     if m:
         clean = re.sub(r"<[^>]+>", "", m.group(1))
         clean = clean.replace("&mdash;", "-").replace("&amp;", "&")
+        # Strip leading "Chapter N: " prefix for matching with dropdown titles
+        clean = re.sub(r'^Chapter\s+\d+[:\-.]\s*', '', clean).strip()
         return clean.strip()
     return html_path.stem.replace("-", " ").title()
 
