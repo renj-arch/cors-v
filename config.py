@@ -34,6 +34,7 @@ TTS_PROVIDER = os.getenv("TTS_PROVIDER", "edge")
 VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", 1920))
 VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", 1080))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", 24))
+RENDER_FPS = int(os.getenv("RENDER_FPS", 12))  # lower = faster render
 
 VIDEO_SIZE = (VIDEO_WIDTH, VIDEO_HEIGHT)
 

@@ -453,13 +453,21 @@ class _CachedSceneClip(VideoClip):
         return self._cache[fi]
 
 
-def build_clip(self, fps: int = config.VIDEO_FPS) -> VideoClip:
-    """Build a VideoClip with pre-rendered frame cache."""
+def build_clip(self, fps: int = 0) -> VideoClip:
+    """Build a VideoClip with pre-rendered frame cache.
+
+    Args:
+        fps: Frames per second. Lower = faster render, choppier motion.
+             Use 10 for preview, 24 for final high-quality output.
+             Defaults to config.RENDER_FPS (12).
+    """
+    if fps <= 0:
+        fps = config.RENDER_FPS
     prepped = [_PrepLayer(l) for l in self.layers]
     bg_np = self._get_bg()
 
     total_frames = max(1, int(self.duration * fps))
-    print(f"    Rendering {total_frames} frames ({len(prepped)} layers)...")
+    print(f"    Rendering {total_frames} frames at {fps}fps ({len(prepped)} layers)...")
 
     cache = [None] * total_frames
     for fi in range(total_frames):
