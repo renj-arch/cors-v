@@ -64,6 +64,22 @@ def _tw(font, text):
     return len(text) * 8
 
 
+def text_width(text: str, font_size: int = 28) -> int:
+    """Public helper to measure text width for animation positioning."""
+    f = _font(font_size)
+    return _tw(f, text)
+
+
+def wrap_lines(text: str, max_width: int, font_size: int = 24) -> list[str]:
+    """Wrap text to fit within max_width pixels."""
+    f = _font(font_size)
+    return _wrap(text, max_width, f)
+
+
+def line_height(font_size: int = 24) -> int:
+    return font_size + 6
+
+
 def _wrap(text, max_w, font):
     words = text.split()
     lines = []

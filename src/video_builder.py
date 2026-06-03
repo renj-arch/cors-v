@@ -1,4 +1,9 @@
-"""Animated lecture-style video builder with transitions and visual effects."""
+"""Animated lecture-style video builder with transitions and visual effects.
+
+Supports both:
+- New: timeline-based animated scenes with progressive reveals (use_animation=True)
+- Legacy: static image + Ken Burns zoom (use_animation=False)
+"""
 
 import io, random, math
 from pathlib import Path
@@ -12,6 +17,7 @@ from moviepy import (
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 import config
 from src import visual_renderer
+from src import scene_composer
 
 FONT = config.get_font()
 W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
@@ -26,8 +32,6 @@ COLORS = {
     "text_sec": (200, 210, 230),
     "board": (30, 35, 50),
 }
-
-
 
 
 def create_lecture_bg() -> Image.Image:
@@ -101,7 +105,6 @@ def create_visual_scene(visual: Image.Image | None,
 
     draw = ImageDraw.Draw(canvas)
 
-    # Semi-transparent bar at top for heading
     bar_h = 80
     bar = Image.new("RGBA", (W, bar_h), (0, 0, 0, 180))
     canvas.paste(bar, (0, 0), bar)
@@ -111,7 +114,6 @@ def create_visual_scene(visual: Image.Image | None,
         font_h = ImageFont.load_default()
     draw.text((30, 18), heading, font=font_h, fill=COLORS["accent2"])
 
-    # Semi-transparent panel at bottom for bullet points
     panel_h = 140
     panel = Image.new("RGBA", (W, panel_h), (0, 0, 0, 200))
     canvas.paste(panel, (0, H - panel_h), panel)
@@ -219,46 +221,37 @@ def build_lecture_video(
     output_path: Path,
     title: str = "",
     exam: str = "neet",
+    use_animation: bool = True,
 ) -> Path:
+    """Build the lecture video.
+
+    If use_animation=True (default), each scene becomes an animated
+    timeline composition with progressive reveals and motion graphics.
+    If False, falls back to static images with Ken Burns zoom.
+    """
     audio = AudioFileClip(str(audio_path))
     total_dur = audio.duration
     audio.close()
 
     print(f"\n  Generating {len(scenes)} lecture scenes...")
 
-    scene_images = []
     scene_text_chars = []
-    for si, scene in enumerate(scenes):
-        scene_type = scene.get("type", "explain")
+    for scene in scenes:
         heading = scene.get("heading", "")
-        lines = scene.get("bullets", "")
-        if isinstance(lines, str):
-            lines = [l.strip() for l in lines.replace("•", "").split(",") if l.strip()]
+        lines_raw = scene.get("bullets", "")
+        if isinstance(lines_raw, str):
+            lines = [l.strip() for l in lines_raw.replace("•", "").split(",") if l.strip()]
+        else:
+            lines = list(lines_raw) if lines_raw else []
         if not lines:
             lines = [heading]
         dialogue = scene.get("dialogue", "") or ""
-
         total_chars = len(dialogue) + sum(len(l) for l in lines) + len(heading)
         scene_text_chars.append(total_chars)
 
-        if scene_type == "summary":
-            canvas = visual_renderer.render_bullets("Key Takeaways", lines[:6])
-        elif scene_type == "cta":
-            canvas = visual_renderer.render_bullets(heading, lines[:4])
-        else:
-            canvas = visual_renderer.render_scene(scene_type, heading, lines)
-
-        if canvas is None:
-            canvas = visual_renderer._bg()
-        scene_images.append(np.array(canvas))
-        print(f"    Scene {si+1}: {scene_type} — {heading[:40]}")
-
-    print("  Assembling lecture...")
-
     total_text_chars = sum(scene_text_chars)
-    min_dur = 1.5
+    min_dur = 1.8
 
-    # Allocate durations proportional to text content, normalize to total_dur
     raw_durs = []
     for chars in scene_text_chars:
         if total_text_chars > 0:
@@ -269,23 +262,25 @@ def build_lecture_video(
     sum_raw = sum(raw_durs)
     durations = [d * total_dur / sum_raw for d in raw_durs] if sum_raw > 0 else [total_dur / len(scenes)] * len(scenes)
 
-    clips = []
+    scene_clips = []
+    for si, scene in enumerate(scenes):
+        sd = durations[si]
+        heading = scene.get("heading", "")
+        scene_type = scene.get("type", "explain")
 
-    for i, (scene_data, img_arr) in enumerate(zip(scenes, scene_images)):
-        sd = durations[i]
+        print(f"    Scene {si+1}: {scene_type} — {heading[:40]} ({sd:.1f}s)")
 
-        if sd > 1.5:
-            main = ken_burns_zoom(img_arr, sd * 0.92, zoom_max=0.08)
-            clips.append(main)
-            if i < len(scenes) - 1:
-                trans = fade_transition(img_arr, sd * 0.08, fade_in=False)
-                clips.append(trans)
+        if use_animation and sd >= 1.5:
+            clip = scene_composer.compose_scene(scene, sd)
         else:
-            main = ImageClip(img_arr, duration=sd)
-            clips.append(main)
+            clip = scene_composer.build_scene_from_static(scene, sd)
 
-    if clips:
-        bg = concatenate_videoclips(clips, method="compose")
+        scene_clips.append(clip)
+
+    print("  Assembling lecture...")
+
+    if scene_clips:
+        bg = concatenate_videoclips(scene_clips, method="compose")
     else:
         bg = ColorClip(color=COLORS["bg"], duration=max(total_dur, 1), size=config.VIDEO_SIZE)
 
