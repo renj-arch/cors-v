@@ -31,10 +31,10 @@ GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 TTS_PROVIDER = os.getenv("TTS_PROVIDER", "edge")
 
-VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", 1920))
-VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", 1080))
+VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", 1280))
+VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", 720))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", 24))
-RENDER_FPS = int(os.getenv("RENDER_FPS", 8))  # lower = faster render, less memory
+RENDER_FPS = int(os.getenv("RENDER_FPS", 4))  # lower = faster render, less memory
 
 VIDEO_SIZE = (VIDEO_WIDTH, VIDEO_HEIGHT)
 

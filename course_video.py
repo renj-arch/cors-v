@@ -58,7 +58,7 @@ def main():
     temp_dir.mkdir(exist_ok=True)
 
     topic_keywords = ch_info["filename"].replace("biology-chapter-", "").replace("-", " ")
-    concepts = ch_info["concepts"]
+    concepts = ch_info["concepts"][:5]  # limit to 5 concepts for fast (<5 min) videos
 
     print(f"\n[1/4] Creating lecture scenes...")
     scenes = generate_lecture_scenes(ch_info["title"], topic_keywords, concepts)
