@@ -1,0 +1,89 @@
+name: "Generate Lesson Pages"
+on:
+  workflow_dispatch:
+    inputs:
+      course:
+        description: 'Course'
+        required: true
+        type: choice
+        options:
+          - agniveer-reasoning
+          - agniveer-mathematics
+          - agniveer-science
+          - agniveer-general-knowledge
+          - neet-biology
+          - upsc-general-studies
+          - upsc-csat
+          - jee-physics
+          - jee-chemistry
+          - jee-mathematics
+          - gate-engineering-mathematics
+          - gate-general-aptitude
+          - ssc-gd-reasoning
+          - ssc-gd-mathematics
+          - ssc-gd-english
+          - ssc-gd-general-knowledge
+          - cgl-reasoning
+          - cgl-quantitative-aptitude
+          - cgl-english
+          - cgl-general-awareness
+          - ibps-po-reasoning
+          - ibps-po-quantitative-aptitude
+          - ibps-po-english
+          - ibps-po-general-awareness
+          - sbi-clerk-reasoning
+          - sbi-clerk-quantitative-aptitude
+          - sbi-clerk-english
+          - sbi-clerk-general-awareness
+          - rbi-reasoning
+          - rbi-quantitative-aptitude
+          - rbi-english
+          - rbi-general-awareness
+          - ctet-child-development
+          - ctet-mathematics
+          - ctet-environmental-studies
+          - ctet-language
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout coursevi
+        uses: actions/checkout@v4
+
+      - name: Checkout study content
+        uses: actions/checkout@v4
+        with:
+          repository: renj-arch/dimsred
+          path: study
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 python-dotenv
+
+      - name: Generate lesson pages
+        env:
+          LLM_PROVIDER: openrouter
+          LLM_MODEL: openrouter/free
+          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          STUDY_PROJECT: ${{ github.workspace }}/study
+        run: python scripts/generate-lesson-pages.py "${{ inputs.course }}"
+
+      - name: Commit and push to dimsred
+        run: |
+          cd study
+          git config user.name "cors-v bot"
+          git config user.email "bot@cors-v"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "auto-generate lesson pages: ${{ inputs.course }}"
+            git push
+          fi
